@@ -90,7 +90,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Nhập email của bạn để nhận liên kết đặt lại mật khẩu từ Firebase.',
+                    'Enter your registered email address to receive a secure password reset link.',
                     style: TextStyle(
                       fontSize: 13,
                       color: AppColors.greySubtext,
@@ -130,7 +130,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Đã gửi liên kết khôi phục! Vui lòng kiểm tra hòm thư của bạn.',
+                              'Reset link sent! Please check your email inbox.',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: isDark ? Colors.white : Colors.black,
@@ -142,7 +142,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                     ),
 
-                  // Ô nhập Email với gợi ý your@email.com hiển thị mờ
                   Container(
                     decoration: BoxDecoration(
                       color: cardColor,

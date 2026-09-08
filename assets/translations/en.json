@@ -1,0 +1,48 @@
+{
+  "app_name": "Macro Tracker",
+  "auth": {
+    "welcome_back": "Welcome back!",
+    "sign_in": "Sign In",
+    "sign_up": "Sign up",
+    "create_account": "Create Account",
+    "email": "Email",
+    "email_address": "Email Address",
+    "email_hint": "your@email.com",
+    "password": "Password",
+    "confirm_password": "Confirm Password",
+    "new_password": "New Password",
+    "forgot_password_q": "Forgot password?",
+    "forgot_password_title": "Forgot Password?",
+    "forgot_password_desc": "Enter your registered email address to receive a secure password reset link.",
+    "continue_with_google": "Continue with Google",
+    "dont_have_account": "Don't have an account? ",
+    "already_have_account": "Already have an account? ",
+    "set_password_title": "Set Account Password",
+    "set_password_desc": "Create a password for your account to enable standard email sign-in anytime.",
+    "save_and_enter": "Save & Enter App",
+    "send_reset_link": "Send Reset Link",
+    "back_to_sign_in": "Back to Sign In",
+    "reset_link_sent": "Reset link sent! Please check your email inbox.",
+    "password_hint_rule": "8-32 chars, uppercase, lowercase, numbers & symbols"
+  },
+  "errors": {
+    "fill_all_fields": "Please fill in all fields.",
+    "fill_email_password": "Please enter both email and password.",
+    "fill_both_passwords": "Please fill in both password fields.",
+    "enter_email": "Please enter your email address.",
+    "invalid_email": "Invalid email format.",
+    "passwords_not_match": "Passwords do not match.",
+    "system_error": "An unexpected system error occurred. Please try again.",
+    "google_error": "Unable to sign in with Google account.",
+    "reset_error": "Failed to send password reset email.",
+    "save_password_error": "Failed to save password. Please try again.",
+    "auth_failed": "Authentication failed. Please try again."
+  },
+  "dashboard": {
+    "today": "Today",
+    "calories": "Calories",
+    "protein": "Protein",
+    "carbs": "Carbs",
+    "fat": "Fat"
+  }
+}

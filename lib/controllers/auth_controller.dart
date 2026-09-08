@@ -38,11 +38,35 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Đăng nhập Email
+  static String? validatePassword(String password) {
+    final cleanPass = password.trim();
+
+    if (cleanPass.length < 8 || cleanPass.length > 32) {
+      return 'Password must be between 8 and 32 characters.';
+    }
+    if (cleanPass.contains(' ')) {
+      return 'Password cannot contain spaces.';
+    }
+    if (!RegExp(r'[a-z]').hasMatch(cleanPass)) {
+      return 'Password must contain at least one lowercase letter (a-z).';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(cleanPass)) {
+      return 'Password must contain at least one uppercase letter (A-Z).';
+    }
+    if (!RegExp(r'\d').hasMatch(cleanPass)) {
+      return 'Password must contain at least one number (0-9).';
+    }
+    if (!RegExp(r'[@$!%*?&#^()_+\-=\[\]{}|;:,.<>]').hasMatch(cleanPass)) {
+      return 'Password must contain at least one special character (@\$!%*?&...).';
+    }
+
+    return null;
+  }
+
   Future<bool> signInWithEmail(String email, String password) async {
     final cleanEmail = email.trim();
     if (cleanEmail.isEmpty || password.trim().isEmpty) {
-      _errorMessage = 'Vui lòng điền đầy đủ Email và Mật khẩu.';
+      _errorMessage = 'Please enter both email and password.';
       notifyListeners();
       return false;
     }
@@ -59,13 +83,12 @@ class AuthController extends ChangeNotifier {
       _setLoading(false);
       return false;
     } catch (e) {
-      _errorMessage = 'Đã có lỗi hệ thống xảy ra. Vui lòng thử lại.';
+      _errorMessage = 'An unexpected system error occurred. Please try again.';
       _setLoading(false);
       return false;
     }
   }
 
-  // Đăng nhập Google
   Future<bool> signInWithGoogle() async {
     _setLoading(true);
     _errorMessage = null;
@@ -79,13 +102,12 @@ class AuthController extends ChangeNotifier {
       _setLoading(false);
       return false;
     } catch (e) {
-      _errorMessage = 'Không thể kết nối tài khoản Google.';
+      _errorMessage = 'Unable to sign in with Google account.';
       _setLoading(false);
       return false;
     }
   }
 
-  // Đăng ký tài khoản mới
   Future<bool> signUp({
     required String name,
     required String email,
@@ -97,26 +119,27 @@ class AuthController extends ChangeNotifier {
     final cleanPassword = password.trim();
 
     if (cleanName.isEmpty || cleanEmail.isEmpty || cleanPassword.isEmpty) {
-      _errorMessage = 'Vui lòng điền đầy đủ tất cả các trường.';
+      _errorMessage = 'Please fill in all fields.';
       notifyListeners();
       return false;
     }
 
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(cleanEmail)) {
-      _errorMessage = 'Định dạng email không hợp lệ.';
+      _errorMessage = 'Invalid email format.';
       notifyListeners();
       return false;
     }
 
-    if (cleanPassword.length < 6) {
-      _errorMessage = 'Mật khẩu phải chứa ít nhất 6 ký tự.';
+    final passwordError = validatePassword(cleanPassword);
+    if (passwordError != null) {
+      _errorMessage = passwordError;
       notifyListeners();
       return false;
     }
 
     if (cleanPassword != confirmPassword.trim()) {
-      _errorMessage = 'Mật khẩu xác nhận không trùng khớp.';
+      _errorMessage = 'Passwords do not match.';
       notifyListeners();
       return false;
     }
@@ -137,24 +160,23 @@ class AuthController extends ChangeNotifier {
       _setLoading(false);
       return false;
     } catch (e) {
-      _errorMessage = 'Đã có lỗi xảy ra trong quá trình đăng ký.';
+      _errorMessage = 'An error occurred during account creation.';
       _setLoading(false);
       return false;
     }
   }
 
-  // Gửi email khôi phục mật khẩu
   Future<bool> sendPasswordReset(String email) async {
     final cleanEmail = email.trim();
     if (cleanEmail.isEmpty) {
-      _errorMessage = 'Vui lòng nhập địa chỉ Email của bạn.';
+      _errorMessage = 'Please enter your email address.';
       notifyListeners();
       return false;
     }
 
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(cleanEmail)) {
-      _errorMessage = 'Định dạng email không hợp lệ.';
+      _errorMessage = 'Invalid email format.';
       notifyListeners();
       return false;
     }
@@ -171,7 +193,7 @@ class AuthController extends ChangeNotifier {
       _setLoading(false);
       return false;
     } catch (e) {
-      _errorMessage = 'Không thể gửi email đặt lại mật khẩu.';
+      _errorMessage = 'Failed to send password reset email.';
       _setLoading(false);
       return false;
     }
@@ -180,24 +202,24 @@ class AuthController extends ChangeNotifier {
   String _mapFirebaseAuthError(String code) {
     switch (code) {
       case 'user-not-found':
-        return 'Không tìm thấy tài khoản với email này.';
+        return 'No account found with this email.';
       case 'wrong-password':
       case 'invalid-credential':
-        return 'Email hoặc mật khẩu không chính xác.';
+        return 'Incorrect email or password.';
       case 'email-already-in-use':
-        return 'Email này đã được đăng ký cho một tài khoản khác.';
+        return 'This email is already registered.';
       case 'invalid-email':
-        return 'Định dạng email không hợp lệ.';
+        return 'Invalid email address.';
       case 'weak-password':
-        return 'Mật khẩu quá yếu (cần tối thiểu 6 ký tự).';
+        return 'Password does not meet security requirements.';
       case 'user-disabled':
-        return 'Tài khoản này đã bị khóa.';
+        return 'This account has been disabled.';
       case 'too-many-requests':
-        return 'Quá nhiều lần thử thất bại. Vui lòng đợi trong giây lát.';
+        return 'Too many failed attempts. Please try again later.';
       case 'network-request-failed':
-        return 'Lỗi kết nối mạng. Vui lòng kiểm tra lại Internet.';
+        return 'Network error. Please check your internet connection.';
       default:
-        return 'Lỗi xác thực ($code). Vui lòng thử lại.';
+        return 'Authentication failed ($code). Please try again.';
     }
   }
 }

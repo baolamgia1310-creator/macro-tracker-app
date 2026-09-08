@@ -3,6 +3,7 @@ import '../../controllers/auth_controller.dart';
 import '../../core/constants/app_colors.dart';
 import 'sign_up_screen.dart';
 import 'forgot_password_screen.dart';
+import 'set_password_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -42,10 +43,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _handleGoogleLogin() async {
-    final success = await _controller.signInWithGoogle();
-    if (success && mounted) {
-      widget.onLoginSuccess();
-    }
+  await _controller.signInWithGoogle();
   }
 
   @override
