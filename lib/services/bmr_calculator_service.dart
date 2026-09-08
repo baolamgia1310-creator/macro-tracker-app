@@ -1,5 +1,16 @@
 import '../models/user_profile.dart';
 
+enum BmiCategory {
+  severeThinness,   // < 16.0
+  moderateThinness, // 16.0 - 16.9
+  mildThinness,     // 17.0 - 18.4
+  normal,           // 18.5 - 24.9
+  overweight,       // 25.0 - 29.9
+  obeseClass1,      // 30.0 - 34.9
+  obeseClass2,      // 35.0 - 39.9
+  obeseClass3,      // >= 40.0
+}
+
 class MacroTarget {
   final double targetCalories;
   final double targetProteinGrams;
@@ -15,7 +26,67 @@ class MacroTarget {
 }
 
 class BmrCalculatorService {
-  // 1. Tính BMR theo công thức Mifflin-St Jeor
+  // 1. Tính BMI chuẩn: kg / (m)^2
+  double calculateBMI(double weightKg, double heightCm) {
+    if (heightCm <= 0) return 0.0;
+    final heightM = heightCm / 100;
+    return weightKg / (heightM * heightM);
+  }
+
+  // 2. Phân loại 8 cấp bậc BMI chuẩn y khoa WHO
+  BmiCategory getBmiCategory(double bmi) {
+    if (bmi < 16.0) return BmiCategory.severeThinness;
+    if (bmi < 17.0) return BmiCategory.moderateThinness;
+    if (bmi < 18.5) return BmiCategory.mildThinness;
+    if (bmi < 25.0) return BmiCategory.normal;
+    if (bmi < 30.0) return BmiCategory.overweight;
+    if (bmi < 35.0) return BmiCategory.obeseClass1;
+    if (bmi < 40.0) return BmiCategory.obeseClass2;
+    return BmiCategory.obeseClass3;
+  }
+
+  // 3. Tên hiển thị chuẩn tiếng Anh
+  String getCategoryLabel(BmiCategory category) {
+    switch (category) {
+      case BmiCategory.severeThinness:
+        return 'Severe Thinness';
+      case BmiCategory.moderateThinness:
+        return 'Moderate Thinness';
+      case BmiCategory.mildThinness:
+        return 'Mild Thinness';
+      case BmiCategory.normal:
+        return 'Normal Weight';
+      case BmiCategory.overweight:
+        return 'Overweight';
+      case BmiCategory.obeseClass1:
+        return 'Obese Class I';
+      case BmiCategory.obeseClass2:
+        return 'Obese Class II';
+      case BmiCategory.obeseClass3:
+        return 'Obese Class III';
+    }
+  }
+
+  // 4. Lời khuyên định hướng chọn 1 trong 3 Option
+  String getGoalRecommendation(BmiCategory category) {
+    switch (category) {
+      case BmiCategory.severeThinness:
+      case BmiCategory.moderateThinness:
+        return 'Recommended: Muscle Gain. A caloric surplus is clinically advised to restore essential body mass.';
+      case BmiCategory.mildThinness:
+        return 'Recommended: Muscle Gain or Maintain Weight to build healthy lean tissue.';
+      case BmiCategory.normal:
+        return 'Healthy range! All 3 goals are medically safe based on your fitness targets.';
+      case BmiCategory.overweight:
+        return 'Recommended: Weight Loss (caloric deficit) or Maintain Weight (body recomposition).';
+      case BmiCategory.obeseClass1:
+      case BmiCategory.obeseClass2:
+      case BmiCategory.obeseClass3:
+        return 'Recommended: Weight Loss. A sustained caloric deficit will optimize cardiovascular and metabolic health.';
+    }
+  }
+
+  // 5. Công thức Mifflin-St Jeor (1990)
   double calculateBMR({
     required double weightKg,
     required double heightCm,
@@ -29,22 +100,28 @@ class BmrCalculatorService {
     }
   }
 
-  // 2. Tính TDEE dựa trên hệ số vận động
+  // 6. Tính TDEE theo hệ số vận động PAL
   double calculateTDEE(double bmr, ActivityLevel activityLevel) {
     switch (activityLevel) {
       case ActivityLevel.sedentary:
-        return bmr * 1.2;
+        return bmr * 1.200;
       case ActivityLevel.lightlyActive:
         return bmr * 1.375;
       case ActivityLevel.moderatelyActive:
-        return bmr * 1.55;
+        return bmr * 1.550;
       case ActivityLevel.veryActive:
         return bmr * 1.725;
     }
   }
 
-  // 3. Tính lượng Calo và Macro mục tiêu theo Goal
-  MacroTarget calculateTarget(double tdee, GoalType goal) {
+  // 7. Phân bổ Calo & Macro có kiểm soát an toàn theo phân loại BMI
+  MacroTarget calculateTarget({
+    required double bmr,
+    required double tdee,
+    required GoalType goal,
+    required Gender gender,
+    required double bmi,
+  }) {
     double calories;
     double proteinRatio;
     double carbsRatio;
@@ -52,35 +129,49 @@ class BmrCalculatorService {
 
     switch (goal) {
       case GoalType.weightLoss:
-        calories = tdee - 500; // Thâm hụt 500 kcal
+        calories = tdee - 500;
+        final minSafeFloor = gender == Gender.male ? 1500.0 : 1200.0;
+        if (calories < minSafeFloor) calories = minSafeFloor;
+        if (calories < bmr) calories = bmr;
+
         proteinRatio = 0.35;
         carbsRatio = 0.40;
         fatRatio = 0.25;
         break;
+
       case GoalType.maintenance:
         calories = tdee;
         proteinRatio = 0.30;
         carbsRatio = 0.45;
         fatRatio = 0.25;
         break;
+
       case GoalType.muscleGain:
-        calories = tdee + 300; // Dư thừa 300 kcal
-        proteinRatio = 0.30;
-        carbsRatio = 0.50;
-        fatRatio = 0.20;
+        if (bmi >= 25.0) {
+          // Khi BMI >= 25: Áp dụng thặng dư tối thiểu (+100 kcal) kèm lượng đạm cao
+          calories = tdee + 100;
+          proteinRatio = 0.35;
+          carbsRatio = 0.45;
+          fatRatio = 0.20;
+        } else {
+          // Người có BMI bình thường hoặc gầy: Thặng dư tiêu chuẩn (+300 kcal)
+          calories = tdee + 300;
+          proteinRatio = 0.30;
+          carbsRatio = 0.50;
+          fatRatio = 0.20;
+        }
         break;
     }
 
-    // 1g Protein = 4 kcal, 1g Carbs = 4 kcal, 1g Fat = 9 kcal
     final proteinGrams = (calories * proteinRatio) / 4;
     final carbsGrams = (calories * carbsRatio) / 4;
     final fatGrams = (calories * fatRatio) / 9;
 
     return MacroTarget(
-      targetCalories: calories,
-      targetProteinGrams: proteinGrams,
-      targetCarbsGrams: carbsGrams,
-      targetFatGrams: fatGrams,
+      targetCalories: double.parse(calories.toStringAsFixed(0)),
+      targetProteinGrams: double.parse(proteinGrams.toStringAsFixed(0)),
+      targetCarbsGrams: double.parse(carbsGrams.toStringAsFixed(0)),
+      targetFatGrams: double.parse(fatGrams.toStringAsFixed(0)),
     );
   }
 }

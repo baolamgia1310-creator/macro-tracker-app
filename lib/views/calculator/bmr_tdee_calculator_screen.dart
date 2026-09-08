@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import '../../controllers/calculator_controller.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/constants/app_colors.dart';
+import '../../controllers/calculator_controller.dart';
 import '../../models/user_profile.dart';
 
 class BmrTdeeCalculatorScreen extends StatefulWidget {
-  final VoidCallback? onCalculated;
+  final VoidCallback onSetupCompleted;
 
   const BmrTdeeCalculatorScreen({
     super.key,
-    this.onCalculated,
+    required this.onSetupCompleted,
   });
 
   @override
@@ -17,11 +18,47 @@ class BmrTdeeCalculatorScreen extends StatefulWidget {
 
 class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
   final CalculatorController _controller = CalculatorController();
+  final TextEditingController _ageCtrl = TextEditingController(text: '25');
+  final TextEditingController _weightCtrl = TextEditingController(text: '68');
+  final TextEditingController _heightCtrl = TextEditingController(text: '172');
+
+  @override
+  void initState() {
+    super.initState();
+    _weightCtrl.addListener(() {
+      final w = double.tryParse(_weightCtrl.text);
+      if (w != null) _controller.setWeight(w);
+    });
+    _heightCtrl.addListener(() {
+      final h = double.tryParse(_heightCtrl.text);
+      if (h != null) _controller.setHeight(h);
+    });
+    _ageCtrl.addListener(() {
+      final a = int.tryParse(_ageCtrl.text);
+      if (a != null) _controller.setAge(a);
+    });
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _ageCtrl.dispose();
+    _weightCtrl.dispose();
+    _heightCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSubmit() async {
+    _controller.calculate();
+    if (_controller.errorMessage != null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final success = await _controller.saveProfileAndTargets(user.uid);
+      if (success && mounted) {
+        widget.onSetupCompleted();
+      }
+    }
   }
 
   @override
@@ -32,351 +69,305 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Column(
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'BMR & TDEE',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
-            ),
-            const Text(
-              'Calculate your daily needs',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.greySubtext,
-              ),
-            ),
+            Text('Nutrition Setup', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            Text('Calibrate your baseline targets', style: TextStyle(fontSize: 12, color: AppColors.greySubtext)),
           ],
         ),
       ),
-      body: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Tiêu đề mục thông tin cá nhân
-                Text(
-                  'Personal Details',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 14),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) {
+            final bmiColor = _controller.bmiStatusColor;
 
-                // 2. Các trường nhập cá nhân
-                _buildInputTile(
-                  context: context,
-                  label: 'Age',
-                  value: '${_controller.age}',
-                  icon: Icons.cake_outlined,
-                  onTap: () {
-                    // Logic mở dialog chọn tuổi khi cần
-                  },
-                ),
-                const SizedBox(height: 10),
-                _buildInputTile(
-                  context: context,
-                  label: 'Weight',
-                  value: '${_controller.weightKg.toInt()}',
-                  unit: 'kg',
-                  icon: Icons.scale_outlined,
-                  onTap: () {},
-                ),
-                const SizedBox(height: 10),
-                _buildInputTile(
-                  context: context,
-                  label: 'Height',
-                  value: '${_controller.heightCm.toInt()}',
-                  unit: 'cm',
-                  icon: Icons.height_outlined,
-                  onTap: () {},
-                ),
-                const SizedBox(height: 10),
-                _buildActivityTile(
-                  context: context,
-                  levelText: 'Moderately Active',
-                  onTap: () {},
-                ),
-
-                const SizedBox(height: 28),
-
-                // 3. Tiêu đề mục chọn mục tiêu
-                Text(
-                  'Your Goal',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Choose your primary goal',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.greySubtext,
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // 4. 3 Thẻ mục tiêu (Weight Loss, Maintenance, Muscle Gain)
-                Row(
-                  children: [
-                    _buildGoalCard(
-                      context: context,
-                      goal: GoalType.weightLoss,
-                      title: 'Weight\nLoss',
-                      subtitle: 'Deficit',
-                      icon: Icons.trending_down,
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_controller.errorMessage != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        _controller.errorMessage!,
+                        style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                      ),
                     ),
-                    const SizedBox(width: 10),
-                    _buildGoalCard(
-                      context: context,
-                      goal: GoalType.maintenance,
-                      title: 'Maintain\nWeight', // Tách 2 dòng đồng đều với 2 nút bên cạnh
-                      subtitle: 'Maintain',
-                      icon: Icons.horizontal_rule,
-                    ),
-                    const SizedBox(width: 10),
-                    _buildGoalCard(
-                      context: context,
-                      goal: GoalType.muscleGain,
-                      title: 'Muscle\nGain',
-                      subtitle: 'Surplus',
-                      icon: Icons.trending_up,
-                    ),
-                  ],
-                ),
 
-                const SizedBox(height: 36),
+                  // 1. Biological Sex
+                  Text('Biological Sex', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _buildGenderCard('Male', Icons.male, Gender.male, cardColor, textColor),
+                      const SizedBox(width: 12),
+                      _buildGenderCard('Female', Icons.female, Gender.female, cardColor, textColor),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
-                // 5. Nút Calculate
-                ElevatedButton(
-                  onPressed: () {
-                    _controller.calculateDailyNeeds();
-                    if (widget.onCalculated != null) {
-                      widget.onCalculated!();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.lime,
-                    foregroundColor: Colors.black,
-                    minimumSize: const Size.fromHeight(54),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
+                  // 2. Biometric Stats kèm Badge phân nhóm WHO
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Biometric Stats', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: bmiColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: bmiColor.withOpacity(0.4)),
+                        ),
+                        child: Text(
+                          'BMI: ${_controller.bmi.toStringAsFixed(1)} • ${_controller.bmiCategoryLabel}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: bmiColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _buildInputField('Age', 'years', _ageCtrl, Icons.cake_outlined, cardColor, textColor),
+                  const SizedBox(height: 10),
+                  _buildInputField('Weight', 'kg', _weightCtrl, Icons.scale_outlined, cardColor, textColor),
+                  const SizedBox(height: 10),
+                  _buildInputField('Height', 'cm', _heightCtrl, Icons.height_outlined, cardColor, textColor),
+                  const SizedBox(height: 20),
+
+                  // 3. Activity Level
+                  Text('Activity Level', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                  ),
-                  child: const Text(
-                    'Calculate',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<ActivityLevel>(
+                        isExpanded: true,
+                        value: _controller.activityLevel,
+                        dropdownColor: cardColor,
+                        items: const [
+                          DropdownMenuItem(value: ActivityLevel.sedentary, child: Text('Sedentary (Little to no exercise)')),
+                          DropdownMenuItem(value: ActivityLevel.lightlyActive, child: Text('Lightly Active (1-3 days/week)')),
+                          DropdownMenuItem(value: ActivityLevel.moderatelyActive, child: Text('Moderately Active (3-5 days/week)')),
+                          DropdownMenuItem(value: ActivityLevel.veryActive, child: Text('Very Active (6-7 days hard workouts)')),
+                        ],
+                        onChanged: (val) => val != null ? _controller.setActivityLevel(val) : null,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 24),
+
+                  // 4. Primary Goal Header
+                  Text('Primary Goal', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                  const SizedBox(height: 6),
+
+                  // DÒNG GỢI Ý ĐỊNH HƯỚNG MỤC TIÊU DỰA TRÊN BMI WHO
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: bmiColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: bmiColor.withOpacity(0.25)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.lightbulb_outline, color: bmiColor, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _controller.goalRecommendation,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? AppColors.darkText : AppColors.lightText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // 3 Thẻ lựa chọn mục tiêu
+                  Row(
+                    children: [
+                      _buildGoalCard(GoalType.weightLoss, 'Weight\nLoss', 'Deficit', Icons.trending_down, cardColor, textColor, isDark),
+                      const SizedBox(width: 10),
+                      _buildGoalCard(GoalType.maintenance, 'Maintain\nWeight', 'Maintain', Icons.horizontal_rule, cardColor, textColor, isDark),
+                      const SizedBox(width: 10),
+                      _buildGoalCard(GoalType.muscleGain, 'Muscle\nGain', 'Surplus', Icons.trending_up, cardColor, textColor, isDark),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Submit Action Button
+                  ElevatedButton(
+                    onPressed: _controller.isLoading ? null : _handleSubmit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.lime,
+                      foregroundColor: Colors.black,
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: _controller.isLoading
+                        ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
+                        : const Text('Calculate & Start Tracking', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildInputTile({
-    required BuildContext context,
-    required String label,
-    required String value,
-    String? unit,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  Widget _buildGenderCard(String label, IconData icon, Gender gender, Color cardColor, Color textColor) {
+    final isSelected = _controller.gender == gender;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _controller.setGender(gender),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? AppColors.lime : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: isSelected ? AppColors.lime : AppColors.greySubtext),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: textColor)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
+  Widget _buildInputField(String label, String unit, TextEditingController ctrl, IconData icon, Color cardColor, Color textColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           Icon(icon, size: 20, color: AppColors.greySubtext),
           const SizedBox(width: 12),
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-              color: isDark ? AppColors.darkText : AppColors.lightText,
-            ),
-          ),
+          Text(label, style: TextStyle(fontWeight: FontWeight.w600, color: textColor)),
           const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+          SizedBox(
+            width: 70,
+            child: TextField(
+              controller: ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.lime, fontSize: 16),
+              decoration: InputDecoration(
+                suffixText: ' $unit',
+                suffixStyle: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
+                border: InputBorder.none,
+              ),
             ),
           ),
-          if (unit != null) ...[
-            const SizedBox(width: 4),
-            Text(
-              unit,
-              style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildActivityTile({
-    required BuildContext context,
-    required String levelText,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.directions_run, size: 20, color: AppColors.greySubtext),
-          const SizedBox(width: 12),
-          Text(
-            'Activity Level',
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-              color: isDark ? AppColors.darkText : AppColors.lightText,
+  Widget _buildGoalCard(GoalType goal, String title, String subtitle, IconData icon, Color cardColor, Color textColor, bool isDark) {
+    final isSelected = _controller.selectedGoal == goal;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _controller.setGoal(goal),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: 138,
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? AppColors.lime : Colors.transparent,
+              width: 2,
             ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppColors.lime.withOpacity(0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
           ),
-          const Spacer(),
-          Text(
-            levelText,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.greySubtext,
-            ),
-          ),
-          const SizedBox(width: 4),
-          const Icon(Icons.chevron_right, size: 18, color: AppColors.greySubtext),
-        ],
-      ),
-    );
-  }
-
-Widget _buildGoalCard({
-  required BuildContext context,
-  required GoalType goal,
-  required String title,
-  required String subtitle,
-  required IconData icon,
-}) {
-  final isSelected = _controller.selectedGoal == goal;
-  final theme = Theme.of(context);
-  final isDark = theme.brightness == Brightness.dark;
-
-  return Expanded(
-    child: GestureDetector(
-      onTap: () => _controller.setGoal(goal),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 138, // Tăng chiều cao để thẻ dài và thanh thoát hơn
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.lime : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.lime.withOpacity(0.12),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // 1. Icon đại diện có vòng nền bo tròn
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.lime.withOpacity(0.15)
-                    : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03)),
-                shape: BoxShape.circle,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.lime.withOpacity(0.15)
+                      : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03)),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: isSelected ? AppColors.lime : AppColors.greySubtext, size: 24),
               ),
-              child: Icon(
-                icon,
-                color: isSelected ? AppColors.lime : AppColors.greySubtext,
-                size: 24,
-              ),
-            ),
-
-            // 2. Tiêu đề mục tiêu
-            SizedBox(
-              height: 32,
-              child: Center(
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                    color: isDark ? AppColors.darkText : AppColors.lightText,
-                    height: 1.2,
+              SizedBox(
+                height: 32,
+                child: Center(
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      color: textColor,
+                      height: 1.2,
+                    ),
                   ),
                 ),
               ),
-            ),
-
-            // 3. Phụ đề trạng thái (Deficit / Maintain / Surplus)
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected
-                    ? (isDark ? AppColors.lime : Colors.black)
-                    : AppColors.greySubtext,
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? (isDark ? AppColors.lime : Colors.black) : AppColors.greySubtext,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }

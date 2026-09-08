@@ -96,21 +96,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Create Account',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
+                        'Create Account',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Start tracking your nutrition today',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: AppColors.greySubtext),
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '8-32 chars, uppercase, lowercase, numbers & symbols',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: AppColors.greySubtext),
+                      ),
+                      const SizedBox(height: 24),
 
                     if (_controller.errorMessage != null)
                       Container(

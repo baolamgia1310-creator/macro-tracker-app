@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Để dùng FirebaseAuth và User
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
 // Bảng màu chuẩn & Controller quản lý trạng thái
@@ -9,8 +9,10 @@ import 'core/constants/app_colors.dart';
 import 'controllers/theme_controller.dart';
 import 'controllers/daily_log_controller.dart';
 
-// Màn hình xác thực & Khung điều hướng 4 tab chính
+// Các màn hình trong luồng xác thực & điều hướng
 import 'views/auth/auth_screen.dart';
+import 'views/auth/set_password_screen.dart';
+import 'views/calculator/bmr_tdee_calculator_screen.dart';
 import 'views/main_navigation_shell.dart';
 
 // Mở chú thích nếu cần nạp dữ liệu mẫu lên Cloud Firestore
@@ -102,12 +104,12 @@ class _MyAppState extends State<MyApp> {
             ),
           ),
 
-          // Tự động điều hướng theo phiên đăng nhập Firebase Auth
+          // Tự động điều hướng theo phiên đăng nhập Firebase Auth & hồ sơ Firestore
           home: StreamBuilder<User?>(
             stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, snapshot) {
-              // 1. Khi đang kiểm tra phiên lưu trữ trên máy
-              if (snapshot.connectionState == ConnectionState.waiting) {
+            builder: (context, authSnapshot) {
+              // 1. Đang kiểm tra phiên lưu trữ cục bộ
+              if (authSnapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
                   body: Center(
                     child: CircularProgressIndicator(
@@ -118,12 +120,12 @@ class _MyAppState extends State<MyApp> {
                 );
               }
 
-              // 2. Bắt lỗi kết nối nếu Firebase Auth gặp sự cố
-              if (snapshot.hasError) {
+              // 2. Bắt lỗi kết nối mạng từ Firebase Auth
+              if (authSnapshot.hasError) {
                 return Scaffold(
                   body: Center(
                     child: Text(
-                      'Đã xảy ra lỗi khởi động. Vui lòng thử lại!',
+                      'Startup error occurred. Please try again!',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
@@ -132,11 +134,55 @@ class _MyAppState extends State<MyApp> {
                 );
               }
 
-              // 3. Đã có phiên đăng nhập -> Vào thẳng Navigation chính 4 tab
-              if (snapshot.hasData && snapshot.data != null) {
-                return MainNavigationShell(
-                  logController: _logController,
-                  themeController: _themeController,
+              // 3. Đã đăng nhập -> Theo dõi hồ sơ trên Cloud Firestore
+              if (authSnapshot.hasData && authSnapshot.data != null) {
+                final user = authSnapshot.data!;
+
+                return StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .snapshots(),
+                  builder: (context, userDocSnapshot) {
+                    if (userDocSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Scaffold(
+                        body: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.lime,
+                            strokeWidth: 2.5,
+                          ),
+                        ),
+                      );
+                    }
+
+                    final userData = userDocSnapshot.data?.data() as Map<String, dynamic>?;
+                    final hasPassword = userData?['hasPassword'] == true;
+                    final isProfileCompleted = userData?['isProfileCompleted'] == true;
+
+                    // Bước 3.1: Tài khoản Google chưa đặt mật khẩu
+                    if (!hasPassword) {
+                      return SetPasswordScreen(
+                        onPasswordSetSuccess: () {
+                          // Firestore cập nhật hasPassword = true sẽ tự kích hoạt Stream chuyển màn
+                        },
+                      );
+                    }
+
+                    // Bước 3.2: Tài khoản chưa hoàn tất khảo sát thông số BMR & TDEE
+                    if (!isProfileCompleted) {
+                      return BmrTdeeCalculatorScreen(
+                        onSetupCompleted: () {
+                          // Firestore cập nhật isProfileCompleted = true sẽ tự kích hoạt Stream vào Shell
+                        },
+                      );
+                    }
+
+                    // Bước 3.3: Đã đầy đủ thông tin -> Vào khung điều hướng 4 tab
+                    return MainNavigationShell(
+                      logController: _logController,
+                      themeController: _themeController,
+                    );
+                  },
                 );
               }
 
