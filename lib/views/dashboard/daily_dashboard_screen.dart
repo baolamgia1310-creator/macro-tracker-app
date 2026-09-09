@@ -20,7 +20,8 @@ class DailyDashboardScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([logController, themeController]),
       builder: (context, _) {
-        final isDark = themeController.isDarkMode;
+        // Đồng bộ gọi qua BuildContext để hỗ trợ System Default
+        final isDark = themeController.isDarkMode(context);
         final cardColor = Theme.of(context).colorScheme.surface;
 
         return Scaffold(
@@ -62,7 +63,7 @@ class DailyDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Calorie Progress Ring
+                // 1. Vòng tròn calo tiến độ
                 MacroProgressRing(
                   consumedCalories: logController.totalConsumedCalories,
                   targetCalories: logController.target.targetCalories,
@@ -70,7 +71,7 @@ class DailyDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
 
-                // 2. Macro Bars Card (Dùng AppColors cho Protein, Carbs, Fat)
+                // 2. Thẻ Macro Bars (Protein, Carbs, Fat)
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -104,7 +105,7 @@ class DailyDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // 3. Meals Checklist Header
+                // 3. Tiêu đề danh sách bữa ăn
                 Text(
                   'Meals',
                   style: TextStyle(
@@ -115,7 +116,7 @@ class DailyDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // 4. Meals Checklist Items
+                // 4. Danh sách các bữa ăn
                 _buildMealItem(
                   context: context,
                   title: 'Breakfast',
@@ -194,9 +195,9 @@ class DailyDashboardScreen extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               const SizedBox(height: 2),
-              const Text(
-                '450 kcal',
-                style: TextStyle(fontSize: 12, color: AppColors.greySubtext),
+              Text(
+                calories,
+                style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
               ),
             ],
           ),

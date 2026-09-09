@@ -26,9 +26,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  void _showThemeSelectionSheet(BuildContext context, Color cardColor, Color textColor, Color borderColor) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text(
+                    'Theme Appearance',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                _buildThemeItem(
+                  ctx: ctx,
+                  title: 'System Default',
+                  subtitle: 'Match device settings (Light by default)',
+                  mode: ThemeMode.system,
+                  icon: Icons.settings_suggest_outlined,
+                  textColor: textColor,
+                ),
+                Divider(height: 1, color: borderColor.withOpacity(0.5)),
+
+                _buildThemeItem(
+                  ctx: ctx,
+                  title: 'Light Mode',
+                  subtitle: 'Clean white appearance',
+                  mode: ThemeMode.light,
+                  icon: Icons.light_mode_outlined,
+                  textColor: textColor,
+                ),
+                Divider(height: 1, color: borderColor.withOpacity(0.5)),
+
+                _buildThemeItem(
+                  ctx: ctx,
+                  title: 'Dark Mode',
+                  subtitle: 'High contrast dark theme',
+                  mode: ThemeMode.dark,
+                  icon: Icons.dark_mode_outlined,
+                  textColor: textColor,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildThemeItem({
+    required BuildContext ctx,
+    required String title,
+    required String subtitle,
+    required ThemeMode mode,
+    required IconData icon,
+    required Color textColor,
+  }) {
+    final isSelected = widget.themeController.themeMode == mode;
+
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? AppColors.lime : AppColors.greySubtext,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          color: textColor,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check_circle, color: AppColors.lime, size: 20)
+          : null,
+      onTap: () {
+        widget.themeController.setThemeMode(mode);
+        Navigator.pop(ctx);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.themeController.isDarkMode;
+    final isDark = widget.themeController.isDarkMode(context);
     final cardColor = Theme.of(context).colorScheme.surface;
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
@@ -183,10 +284,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Công tắc Theme Sáng / Tối
+                    // Mục chọn Theme 3 chế độ
                     ListTile(
                       leading: Icon(
-                        isDark ? Icons.dark_mode : Icons.light_mode,
+                        isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
                         color: textColor,
                         size: 22,
                       ),
@@ -195,15 +296,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textColor),
                       ),
                       subtitle: Text(
-                        isDark ? 'Dark Mode' : 'Light Mode',
+                        widget.themeController.themeModeTitle,
                         style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
                       ),
-                      trailing: Switch(
-                        value: isDark,
-                        activeColor: AppColors.lime,
-                        activeTrackColor: Colors.grey[800],
-                        onChanged: (val) => widget.themeController.toggleTheme(val),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.themeController.themeModeTitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppColors.lime : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.chevron_right, size: 18, color: AppColors.greySubtext),
+                        ],
                       ),
+                      onTap: () => _showThemeSelectionSheet(context, cardColor, textColor, borderColor),
                     ),
                     Divider(height: 1, color: borderColor.withOpacity(0.6)),
 

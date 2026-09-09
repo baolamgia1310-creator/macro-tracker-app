@@ -1,57 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
-  final FirebaseAuth _auth;
-  final FirebaseFirestore _db;
-  final GoogleSignIn _googleSignIn;
-
-  AuthService({
-    FirebaseAuth? auth,
-    FirebaseFirestore? db,
-    GoogleSignIn? googleSignIn,
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? FirebaseFirestore.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: ['email', 'profile']);
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   User? get currentUser => _auth.currentUser;
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // 1. Đăng nhập Email & Mật khẩu
-  Future<UserCredential> signInWithEmail({
-    required String email,
-    required String password,
-  }) async {
-    return await _auth.signInWithEmailAndPassword(
-      email: email.trim(),
-      password: password.trim(),
-    );
-  }
-
-  // 2. Đăng nhập Google (Trả về UserCredential để kiểm tra trạng thái)
-  Future<UserCredential?> signInWithGoogle() async {
-    await _googleSignIn.signOut();
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null;
-
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-    final AuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    final userCredential = await _auth.signInWithCredential(credential);
-
-    if (userCredential.user != null) {
-      await _syncUserToFirestore(userCredential.user!);
-    }
-
-    return userCredential;
-  }
-
-  // 3. Đăng ký bằng Email & Mật khẩu
-  Future<UserCredential> signUpWithEmail({
+  // 1. Đăng ký tài khoản và gửi email xác thực (giữ phiên để kiểm tra link)
+  Future<void> signUpWithEmail({
     required String email,
     required String password,
     required String displayName,
@@ -62,93 +19,79 @@ class AuthService {
     );
 
     if (credential.user != null) {
-      await credential.user!.updateDisplayName(displayName.trim());
-      await _syncUserToFirestore(credential.user!, customName: displayName.trim(), hasPassword: true);
+      if (displayName.trim().isNotEmpty) {
+        await credential.user!.updateDisplayName(displayName.trim());
+      }
+      await credential.user!.sendEmailVerification();
+    }
+  }
+
+  // 2. Xóa tài khoản ngay lập tức nếu người dùng hủy hoặc không xác thực
+  Future<void> deleteCurrentUser() async {
+    if (_auth.currentUser != null) {
+      await _auth.currentUser!.delete();
+    }
+  }
+
+  // 3. Đăng nhập bằng Email/Password
+  Future<UserCredential> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email.trim(),
+      password: password.trim(),
+    );
+
+    if (credential.user != null && !credential.user!.emailVerified) {
+      await _auth.signOut();
+      throw FirebaseAuthException(
+        code: 'email-not-verified',
+        message: 'Your email has not been verified yet.',
+      );
     }
 
     return credential;
   }
 
-  // 4. Gửi link đặt lại mật khẩu qua email (Dùng trang web mặc định Firebase)
+  // 4. Gửi email đặt lại mật khẩu
   Future<void> sendPasswordResetEmail(String email) async {
     await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
-  // 5. Kiểm tra tài khoản đã thiết lập mật khẩu hay chưa
-  Future<bool> hasSetPassword(String uid) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (!doc.exists) return false;
-    return (doc.data()?['hasPassword'] as bool?) ?? false;
-  }
+  // 5. Đăng nhập Google
+  Future<UserCredential?> signInWithGoogle() async {
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null;
 
-  // 6. Đặt mật khẩu mới cho tài khoản đăng nhập Google
-  Future<void> setAccountPassword(String newPassword) async {
-  final user = _auth.currentUser;
-  if (user == null) throw Exception('No user currently signed in.');
-
-  // 1. Cập nhật hoặc liên kết mật khẩu với tài khoản Google
-  try {
-    await user.updatePassword(newPassword.trim());
-  } catch (_) {
-    final credential = EmailAuthProvider.credential(
-      email: user.email!,
-      password: newPassword.trim(),
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
     );
-    await user.linkWithCredential(credential);
+
+    return await _auth.signInWithCredential(credential);
   }
-
-  // 2. Cập nhật cờ hasPassword trên Cloud Firestore
-  await _db.collection('users').doc(user.uid).set({
-    'hasPassword': true,
-    'updatedAt': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
-}
-  
-
-  // Khởi tạo hồ sơ người dùng trên Firestore
-  Future<void> _syncUserToFirestore(User user, {String? customName, bool hasPassword = false}) async {
-    final userDoc = _db.collection('users').doc(user.uid);
-    final snapshot = await userDoc.get();
-
-    if (!snapshot.exists) {
-      await userDoc.set({
-        'uid': user.uid,
-        'email': user.email ?? '',
-        'displayName': customName ?? user.displayName ?? 'Macro User',
-        'photoUrl': user.photoURL ?? '',
-        'hasPassword': hasPassword,
-        'age': 25,
-        'gender': 'male',
-        'heightCm': 170.0,
-        'weightKg': 65.0,
-        'activityLevel': 'moderatelyActive',
-        'goal': 'maintenance',
-        'bmr': 1600.0,
-        'tdee': 2200.0,
-        'targetMacros': {
-          'targetCalories': 2200.0,
-          'targetProteinGrams': 150.0,
-          'targetCarbsGrams': 250.0,
-          'targetFatGrams': 65.0,
-        },
-        'settings': {
-          'theme': 'dark',
-          'unitSystem': 'metric',
-          'reminderNotification': true,
-        },
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+  // 6. Kiểm tra và xóa sổ tài khoản nếu chưa kích hoạt email khi khởi động
+  Future<bool> purgeIfUnverified() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      await user.reload(); // Đồng bộ trạng thái mới nhất từ Firebase
+      final refreshedUser = _auth.currentUser;
+      
+      // Nếu vẫn chưa bấm link xác thực -> Xóa vĩnh viễn khỏi Authentication
+      if (refreshedUser != null && !refreshedUser.emailVerified) {
+        await refreshedUser.delete();
+        return true; // Đã xóa
+      }
     }
+    return false;
   }
-  
-  // Đăng xuất
+  // 7. Đăng xuất
   Future<void> signOut() async {
     await Future.wait([
       _auth.signOut(),
       _googleSignIn.signOut(),
     ]);
   }
-
-  
 }

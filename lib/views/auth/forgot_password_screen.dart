@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../controllers/auth_controller.dart';
 import '../../core/constants/app_colors.dart';
@@ -17,20 +18,57 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final AuthController _controller = AuthController();
   final TextEditingController _emailController = TextEditingController();
+
   bool _emailSent = false;
+  Timer? _timer;
+  int _countdown = 30;
+  bool _canSend = true;
 
   @override
   void dispose() {
+    _timer?.cancel();
     _controller.dispose();
     _emailController.dispose();
     super.dispose();
   }
 
+  // Khởi động bộ đếm lùi 30 giây chống spam
+  void _startCooldownTimer() {
+    setState(() {
+      _canSend = false;
+      _countdown = 30;
+    });
+
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_countdown > 1) {
+        setState(() {
+          _countdown--;
+        });
+      } else {
+        timer.cancel();
+        setState(() {
+          _canSend = true;
+        });
+      }
+    });
+  }
+
   Future<void> _handleReset() async {
+    if (!_canSend || _controller.isLoading) return;
+
     final success = await _controller.sendPasswordReset(_emailController.text);
-    if (success && mounted) {
+    
+    if (!mounted) return;
+
+    if (success) {
       setState(() {
         _emailSent = true;
+      });
+      _startCooldownTimer();
+    } else {
+      setState(() {
+        _emailSent = false;
       });
     }
   }
@@ -43,6 +81,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final faintHintColor = isDark
         ? Colors.white.withOpacity(0.25)
         : Colors.black.withOpacity(0.25);
+
+    final isButtonDisabled = !_canSend || _controller.isLoading;
 
     return Scaffold(
       appBar: AppBar(
@@ -63,13 +103,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 20),
+
+                  // Icon chìa khóa
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Container(
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.06)
+                            : Colors.black.withOpacity(0.04),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Icon(
@@ -90,7 +134,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Enter your registered email address to receive a secure password reset link.',
+                    'Enter your registered email address and we will send you a link to reset your password.',
                     style: TextStyle(
                       fontSize: 13,
                       color: AppColors.greySubtext,
@@ -99,6 +143,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 28),
 
+                  // Banner thông báo lỗi
                   if (_controller.errorMessage != null)
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
@@ -115,6 +160,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                     ),
 
+                  // Banner thông báo đã gửi email thành công
                   if (_emailSent)
                     Container(
                       padding: const EdgeInsets.all(14),
@@ -130,7 +176,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Reset link sent! Please check your email inbox.',
+                              'Reset link sent! Please check your inbox (and Spam folder).',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: isDark ? Colors.white : Colors.black,
@@ -142,6 +188,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                     ),
 
+                  // Ô nhập Email
                   Container(
                     decoration: BoxDecoration(
                       color: cardColor,
@@ -163,11 +210,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 24),
 
+                  // Nút Send / Resend Reset Link kèm đếm ngược
                   ElevatedButton(
-                    onPressed: _controller.isLoading ? null : _handleReset,
+                    onPressed: isButtonDisabled ? null : _handleReset,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.lime,
+                      disabledBackgroundColor: isDark
+                          ? Colors.white.withOpacity(0.08)
+                          : Colors.black.withOpacity(0.08),
                       foregroundColor: Colors.black,
+                      disabledForegroundColor: AppColors.greySubtext,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -178,15 +230,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
                           )
-                        : const Text(
-                            'Send Reset Link',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        : Text(
+                            !_canSend
+                                ? 'Resend in ${_countdown}s'
+                                : (_emailSent ? 'Resend Reset Link' : 'Send Reset Link'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                   ),
                   const Spacer(),
 
+                  // Nút quay lại Login
                   Center(
                     child: TextButton.icon(
                       onPressed: widget.onBackToLogin,
