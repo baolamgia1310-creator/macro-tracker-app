@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_profile.dart';
 import '../services/bmr_calculator_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CalculatorController extends ChangeNotifier {
   final BmrCalculatorService _calculatorService = BmrCalculatorService();
@@ -89,7 +90,7 @@ class CalculatorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> saveProfileAndTargets(String uid) async {
+Future<bool> saveProfileAndTargets(String uid) async {
     if (_calculatedTarget == null) calculate();
     if (_errorMessage != null) return false;
 
@@ -97,7 +98,15 @@ class CalculatorController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+
+      // KHỞI TẠO TOÀN BỘ HỒ SƠ LẦN ĐẦU TIÊN TẠI ĐÂY (LAZY-WRITE)
       await _db.collection('users').doc(uid).set({
+        'uid': uid,
+        'email': currentUser?.email ?? '',
+        'displayName': currentUser?.displayName ?? 'Macro User',
+        'hasPassword': true,
+        'isProfileCompleted': true,
         'age': _age,
         'gender': _gender.name,
         'weightKg': _weightKg,
@@ -114,7 +123,7 @@ class CalculatorController extends ChangeNotifier {
           'targetCarbsGrams': _calculatedTarget!.targetCarbsGrams,
           'targetFatGrams': _calculatedTarget!.targetFatGrams,
         },
-        'isProfileCompleted': true,
+        'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

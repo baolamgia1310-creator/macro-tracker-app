@@ -26,8 +26,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.themeController.isDarkMode;
+    final isDark = widget.themeController.isDarkMode(context);
 
+    // Danh sách 4 tab chính, truyền đúng các controller cần thiết
     final screens = [
       DailyDashboardScreen(
         logController: widget.logController,
@@ -41,6 +42,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     ];
 
     return Scaffold(
+      // Giữ nguyên trạng thái (Scroll, input) của từng màn hình khi đổi tab
       body: IndexedStack(
         index: _currentIndex,
         children: screens,
@@ -48,6 +50,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         indicatorColor: AppColors.lime,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
         destinations: const [

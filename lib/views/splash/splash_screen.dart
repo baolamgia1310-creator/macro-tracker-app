@@ -29,7 +29,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
 
-    // Hiệu ứng mượt mà khi logo hiển thị
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -55,7 +54,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    // Giữ logo tối thiểu 1.5 giây để tránh hiện tượng giật màn hình
     await Future.delayed(const Duration(milliseconds: 1500));
 
     if (!mounted) return;
@@ -96,7 +94,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.themeController.isDarkMode;
+    // Đồng bộ gọi qua BuildContext
+    final isDark = widget.themeController.isDarkMode(context);
     final bgColor = isDark ? AppColors.darkBg : AppColors.lightBg;
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
 
@@ -111,7 +110,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo ứng dụng thực tế với bóng đổ nhẹ
                   Container(
                     width: 108,
                     height: 108,
@@ -130,12 +128,23 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       child: Image.asset(
                         'assets/images/logo.png',
                         fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: AppColors.lime,
+                          child: const Center(
+                            child: Text(
+                              'M',
+                              style: TextStyle(
+                                fontSize: 48,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Tên ứng dụng
                   Text(
                     'Macro',
                     style: TextStyle(
@@ -146,8 +155,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ),
                   ),
                   const SizedBox(height: 6),
-
-                  // Slogan
                   const Text(
                     'Track your macros. Achieve your goals.',
                     style: TextStyle(
@@ -157,8 +164,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ),
                   ),
                   const SizedBox(height: 48),
-
-                  // Vòng loading nhỏ gọn đồng bộ với màu chủ đạo
                   SizedBox(
                     width: 24,
                     height: 24,
