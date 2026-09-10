@@ -1,23 +1,85 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/enums/auth_status.dart';
 import '../services/auth_service.dart';
+import '../repositories/user_repository.dart';
 
 class AuthController extends ChangeNotifier {
   final AuthService _authService;
+  final UserRepository _userRepository;
 
-  AuthController({AuthService? authService})
-      : _authService = authService ?? AuthService();
+  AuthController({
+    AuthService? authService,
+    UserRepository? userRepository,
+  })  : _authService = authService ?? AuthService(),
+        _userRepository = userRepository ?? UserRepository() {
+    _initAuthListener();
+  }
+
+  AuthStatus _status = AuthStatus.loading;
+  StreamSubscription<bool>? _authSubscription;
+  StreamSubscription<Map<String, dynamic>?>? _userDocSubscription;
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String? _errorMessage;
 
+  AuthStatus get status => _status;
   bool get isLoading => _isLoading;
   bool get obscurePassword => _obscurePassword;
   bool get obscureConfirmPassword => _obscureConfirmPassword;
   String? get errorMessage => _errorMessage;
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _userDocSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _initAuthListener() {
+    _authSubscription = _authService.watchAuthState().listen((isLoggedIn) async {
+      _userDocSubscription?.cancel();
+
+      if (!isLoggedIn) {
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+        return;
+      }
+
+      final isVerified = await _authService.checkEmailVerified();
+      if (!isVerified) {
+        _status = AuthStatus.unverified;
+        notifyListeners();
+        return;
+      }
+
+      final uid = _authService.currentUserId;
+      if (uid == null) {
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+        return;
+      }
+
+      _userDocSubscription = _userRepository.watchUserDoc(uid).listen((userData) {
+        final hasPassword = (userData?['hasPassword'] == true) || _authService.hasPasswordProvider;
+        final isProfileCompleted = userData?['isProfileCompleted'] == true;
+
+        if (!hasPassword) {
+          _status = AuthStatus.needsPassword;
+        } else if (!isProfileCompleted) {
+          _status = AuthStatus.needsOnboarding;
+        } else {
+          _status = AuthStatus.authenticated;
+        }
+        notifyListeners();
+      }, onError: (_) {
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+      });
+    });
+  }
 
   void togglePasswordVisibility() {
     _obscurePassword = !_obscurePassword;
@@ -41,7 +103,6 @@ class AuthController extends ChangeNotifier {
 
   static String? validatePassword(String password) {
     final cleanPass = password.trim();
-
     if (cleanPass.length < 8 || cleanPass.length > 32) {
       return 'Password must be between 8 and 32 characters.';
     }
@@ -60,7 +121,6 @@ class AuthController extends ChangeNotifier {
     if (!RegExp(r'[@$!%*?&#^()_+\-=\[\]{}|;:,.<>]').hasMatch(cleanPass)) {
       return 'Password must contain at least one special character (@\$!%*?&...).';
     }
-
     return null;
   }
 
@@ -79,12 +139,12 @@ class AuthController extends ChangeNotifier {
       await _authService.signInWithEmail(email: cleanEmail, password: password);
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _mapFirebaseAuthError(e.code);
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
       _setLoading(false);
       return false;
-    } catch (e) {
-      _errorMessage = 'An unexpected system error occurred. Please try again.';
+    } catch (_) {
+      _errorMessage = 'An unexpected system error occurred.';
       _setLoading(false);
       return false;
     }
@@ -95,25 +155,18 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      final credential = await _authService.signInWithGoogle();
+      final success = await _authService.signInWithGoogle();
       _setLoading(false);
-      return credential != null;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _mapFirebaseAuthError(e.code);
+      return success;
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
       _setLoading(false);
       return false;
-    } catch (e) {
+    } catch (_) {
       _errorMessage = 'Unable to sign in with Google account.';
       _setLoading(false);
       return false;
     }
-  }
-  Future<void> cancelRegistration() async {
-    _setLoading(true);
-    try {
-      await _authService.deleteCurrentUser();
-    } catch (_) {}
-    _setLoading(false);
   }
 
   Future<bool> signUp({
@@ -163,18 +216,38 @@ class AuthController extends ChangeNotifier {
       );
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _mapFirebaseAuthError(e.code);
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
       _setLoading(false);
       return false;
-    } catch (e) {
+    } catch (_) {
       _errorMessage = 'An error occurred during account creation.';
       _setLoading(false);
       return false;
     }
   }
 
-  // Phương thức thiết lập mật khẩu mới
+  Future<bool> checkEmailVerified() async {
+    return await _authService.checkEmailVerified();
+  }
+
+  Future<bool> resendVerificationEmail() async {
+    try {
+      await _authService.resendVerificationEmail();
+      return true;
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> cancelRegistration() async {
+    _setLoading(true);
+    await _authService.deleteCurrentUser();
+    _setLoading(false);
+  }
+
   Future<bool> setPassword({
     required String newPassword,
     required String confirmPassword,
@@ -205,31 +278,19 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        // Cập nhật mật khẩu trên Firebase Auth
-        await user.updatePassword(cleanPassword);
-
-        // Lưu cờ xác nhận tài khoản đã có mật khẩu lên Cloud Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-          'hasPassword': true,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        // Đăng xuất phiên hiện tại để người dùng đăng nhập lại từ đầu
+      final uid = _authService.currentUserId;
+      if (uid != null) {
+        await _authService.updatePassword(cleanPassword);
+        await _userRepository.markPasswordSet(uid);
         await _authService.signOut();
       }
-
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _mapFirebaseAuthError(e.code);
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
       _setLoading(false);
       return false;
-    } catch (e) {
+    } catch (_) {
       _errorMessage = 'Failed to set password. Please try again.';
       _setLoading(false);
       return false;
@@ -255,62 +316,17 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      // Gọi trực tiếp FirebaseAuth vì file này đã import firebase_auth.dart
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: cleanEmail);
+      await _authService.sendPasswordResetEmail(cleanEmail);
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _mapFirebaseAuthError(e.code);
+    } on AuthException catch (e) {
+      _errorMessage = e.message;
       _setLoading(false);
       return false;
-    } catch (e) {
+    } catch (_) {
       _errorMessage = 'Failed to send password reset email.';
       _setLoading(false);
       return false;
-    }
-  }
-
-  String _mapFirebaseAuthError(String code) {
-    switch (code) {
-      // 1. Luồng xác thực email (Email Verification)
-      case 'email-not-verified':
-        return 'Please verify your email address before signing in. Check your inbox or Spam folder.';
-
-      // 2. Luồng quên mật khẩu & đăng nhập (User Lookup & Credentials)
-      case 'user-not-found':
-        return 'No account found with this email address.';
-      case 'wrong-password':
-        return 'Incorrect password. Please try again.';
-      case 'invalid-credential':
-        return 'Invalid email or password, or no account found.';
-
-      // 3. Luồng đăng ký tài khoản (Registration)
-      case 'email-already-in-use':
-        return 'This email is already registered. Please sign in instead.';
-      case 'invalid-email':
-        return 'The email address format is invalid.';
-      case 'weak-password':
-        return 'Password does not meet security requirements.';
-
-      // 4. Luồng đổi / thiết lập mật khẩu (Sensitive Auth Operations)
-      case 'requires-recent-login':
-        return 'This action is sensitive and requires a recent sign-in. Please log in again.';
-
-      // 5. Trạng thái tài khoản & cấu hình máy chủ
-      case 'user-disabled':
-        return 'This account has been disabled. Please contact support.';
-      case 'operation-not-allowed':
-        return 'This sign-in method is currently disabled in Firebase Console.';
-
-      // 6. Tần suất gửi yêu cầu & kết nối mạng (Rate Limit & Network)
-      case 'too-many-requests':
-        return 'Too many failed attempts. Please wait a moment and try again.';
-      case 'network-request-failed':
-        return 'Network error. Please check your internet connection.';
-
-      // Mặc định cho các mã lỗi chưa phân loại
-      default:
-        return 'Authentication failed ($code). Please try again.';
     }
   }
 }

@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
-// Bảng màu & Controller quản lý trạng thái
+// Services (Hạ tầng thiết bị & Dịch vụ bảo mật)
+import 'services/display_service.dart';
+import 'services/auth_service.dart';
+
+// Core Tokens & Enums
 import 'core/constants/app_colors.dart';
+import 'core/enums/auth_status.dart';
+
+// Controllers (State Management)
 import 'controllers/theme_controller.dart';
 import 'controllers/daily_log_controller.dart';
+import 'controllers/auth_controller.dart';
 
-// Màn hình trong luồng xác thực & điều hướng
+// Presentation Views
 import 'views/auth/auth_screen.dart';
 import 'views/auth/sign_up_screen.dart';
 import 'views/auth/set_password_screen.dart';
@@ -19,26 +26,22 @@ import 'views/main_navigation_shell.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1. Kích hoạt tần số quét tương thích phần cứng (120Hz/90Hz/60Hz/LTPO)
+  await DisplayService().optimizeRefreshRate();
+
+  // 2. Khởi tạo dịch vụ nền tảng Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // 3. Cấu hình bộ nhớ đệm Offline Cache không giới hạn cho Firestore
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Chờ Firebase Auth khôi phục phiên đăng nhập từ ổ cứng máy
-  try {
-    final initialUser = await FirebaseAuth.instance.authStateChanges().first;
-    // Nếu có tài khoản sót lại từ lần dùng trước mà chưa bấm link xác thực -> Xóa sổ ngay lập tức
-    if (initialUser != null && !initialUser.emailVerified) {
-      await initialUser.reload();
-      if (!initialUser.emailVerified) {
-        await initialUser.delete();
-      }
-    }
-  } catch (_) {}
+  // 4. Quét dọn Cold Boot: Xóa sổ tài khoản chưa kích hoạt nếu app bị tắt ngang
+  await AuthService().purgeUnverifiedUserOnColdBoot();
 
   runApp(const MyApp());
 }
@@ -51,13 +54,16 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  // Quản lý vòng đời Controller tập trung tại gốc ứng dụng
   final ThemeController _themeController = ThemeController();
   final DailyLogController _logController = DailyLogController();
+  final AuthController _authController = AuthController();
 
   @override
   void dispose() {
     _themeController.dispose();
     _logController.dispose();
+    _authController.dispose();
     super.dispose();
   }
 
@@ -70,6 +76,8 @@ class _MyAppState extends State<MyApp> {
           title: 'Macro Tracker',
           debugShowCheckedModeBanner: false,
           themeMode: _themeController.themeMode,
+
+          // Cấu hình Theme Sáng (Light Theme)
           theme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.light,
@@ -86,6 +94,8 @@ class _MyAppState extends State<MyApp> {
               iconTheme: IconThemeData(color: AppColors.lightText),
             ),
           ),
+
+          // Cấu hình Theme Tối (Dark Theme)
           darkTheme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.dark,
@@ -102,75 +112,56 @@ class _MyAppState extends State<MyApp> {
               iconTheme: IconThemeData(color: AppColors.darkText),
             ),
           ),
-          home: StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, authSnapshot) {
-              if (authSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(color: AppColors.lime, strokeWidth: 2.5),
-                  ),
-                );
-              }
 
-              final user = authSnapshot.data;
-
-              // Chưa đăng nhập hoặc chưa bấm link xác thực -> Luôn giữ ở AuthScreen
-              if (user == null || !user.emailVerified) {
-                return Builder(
-                  builder: (navContext) => AuthScreen(
-                    onLoginSuccess: () {},
-                    onNavigateToRegister: () {
-                      Navigator.of(navContext).push(
-                        MaterialPageRoute(
-                          builder: (_) => SignUpScreen(
-                            onSignUpSuccess: () => Navigator.of(navContext).pop(),
-                            onNavigateToLogin: () => Navigator.of(navContext).pop(),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              }
-
-              // Đã xác thực email -> Tiến vào luồng kiểm tra dữ liệu Firestore
-              return StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .snapshots(),
-                builder: (context, userDocSnapshot) {
-                  if (userDocSnapshot.connectionState == ConnectionState.waiting) {
-                    return const Scaffold(
-                      body: Center(
-                        child: CircularProgressIndicator(color: AppColors.lime, strokeWidth: 2.5),
+          // Bộ định tuyến phân tầng độc lập theo máy trạng thái AuthStatus
+          home: ListenableBuilder(
+            listenable: _authController,
+            builder: (context, _) {
+              switch (_authController.status) {
+                case AuthStatus.loading:
+                  return const Scaffold(
+                    body: Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.lime,
+                        strokeWidth: 2.5,
                       ),
-                    );
-                  }
-
-                  final userData = userDocSnapshot.data?.data() as Map<String, dynamic>?;
-
-                  final hasPasswordProvider = user.providerData.any(
-                    (info) => info.providerId == 'password',
+                    ),
                   );
-                  final hasPassword = (userData?['hasPassword'] == true) || hasPasswordProvider;
-                  final isProfileCompleted = userData?['isProfileCompleted'] == true;
 
-                  if (!hasPassword) {
-                    return SetPasswordScreen(onPasswordSetSuccess: () {});
-                  }
+                case AuthStatus.unauthenticated:
+                case AuthStatus.unverified:
+                  return Builder(
+                    builder: (navContext) => AuthScreen(
+                      onLoginSuccess: () {},
+                      onNavigateToRegister: () {
+                        Navigator.of(navContext).push(
+                          MaterialPageRoute(
+                            builder: (_) => SignUpScreen(
+                              onSignUpSuccess: () => Navigator.of(navContext).pop(),
+                              onNavigateToLogin: () => Navigator.of(navContext).pop(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
 
-                  if (!isProfileCompleted) {
-                    return BmrTdeeCalculatorScreen(onSetupCompleted: () {});
-                  }
+                case AuthStatus.needsPassword:
+                  return SetPasswordScreen(
+                    onPasswordSetSuccess: () {},
+                  );
 
+                case AuthStatus.needsOnboarding:
+                  return BmrTdeeCalculatorScreen(
+                    onSetupCompleted: () {},
+                  );
+
+                case AuthStatus.authenticated:
                   return MainNavigationShell(
                     logController: _logController,
                     themeController: _themeController,
                   );
-                },
-              );
+              }
             },
           ),
         );
