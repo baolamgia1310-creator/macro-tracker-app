@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/constants/app_colors.dart';
 import '../../controllers/calculator_controller.dart';
 import '../../models/user_profile.dart';
@@ -49,15 +48,9 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
   }
 
   Future<void> _handleSubmit() async {
-    _controller.calculate();
-    if (_controller.errorMessage != null) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final success = await _controller.saveProfileAndTargets(user.uid);
-      if (success && mounted) {
-        widget.onSetupCompleted();
-      }
+    final success = await _controller.saveProfileAndTargets();
+    if (success && mounted) {
+      widget.onSetupCompleted();
     }
   }
 
@@ -115,7 +108,7 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // 2. Biometric Stats kèm Badge phân nhóm WHO
+                  // 2. Biometric Stats kèm Badge WHO
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -172,11 +165,10 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // 4. Primary Goal Header
+                  // 4. Goal Selection kèm chỉ dẫn lâm sàng
                   Text('Primary Goal', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
                   const SizedBox(height: 6),
 
-                  // DÒNG GỢI Ý ĐỊNH HƯỚNG MỤC TIÊU DỰA TRÊN BMI WHO
                   Container(
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 12),
@@ -205,7 +197,7 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                     ),
                   ),
 
-                  // 3 Thẻ lựa chọn mục tiêu
+                  // 3 Thẻ mục tiêu phẳng hàng 138px
                   Row(
                     children: [
                       _buildGoalCard(GoalType.weightLoss, 'Weight\nLoss', 'Deficit', Icons.trending_down, cardColor, textColor, isDark),
@@ -217,7 +209,6 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Submit Action Button
                   ElevatedButton(
                     onPressed: _controller.isLoading ? null : _handleSubmit,
                     style: ElevatedButton.styleFrom(
@@ -228,8 +219,15 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                       elevation: 0,
                     ),
                     child: _controller.isLoading
-                        ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
-                        : const Text('Calculate & Start Tracking', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+                          )
+                        : const Text(
+                            'Calculate & Start Tracking',
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          ),
                   ),
                 ],
               ),

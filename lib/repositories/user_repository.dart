@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/user_macro_profile.dart';
 
 class UserRepository {
   final FirebaseFirestore _firestore;
@@ -21,5 +22,19 @@ class UserRepository {
       'hasPassword': true,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+// Khởi tạo và đồng bộ hồ sơ chỉ số Macro hoàn chỉnh (Lazy-Write)
+  Future<void> saveUserMacroProfile({
+    required String uid,
+    required Map<String, dynamic> data,
+  }) async {
+    await _firestore.collection('users').doc(uid).set(
+      {
+        ...data,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 }
