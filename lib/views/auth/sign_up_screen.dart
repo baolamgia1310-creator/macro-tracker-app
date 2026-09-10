@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/daily_log_controller.dart';
 import '../../controllers/theme_controller.dart';
@@ -29,7 +28,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
-  // Quản lý đếm ngược 30s cho nút Resend
   Timer? _resendTimer;
   int _countdown = 30;
   bool _canResend = false;
@@ -47,7 +45,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  // Khởi động đồng hồ đếm lùi 30 giây
   void _startCooldownTimer() {
     _resendTimer?.cancel();
     _countdown = 30;
@@ -70,8 +67,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = Theme.of(context).colorScheme.surface;
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+    String? dialogError;
 
-    // Kích hoạt ngay bộ đếm 30s khi vừa tạo tài khoản thành công
     _startCooldownTimer();
 
     showDialog(
@@ -100,11 +97,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   Text(
                     'Verify Your Email',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      color: textColor,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: textColor),
                   ),
                 ],
               ),
@@ -114,71 +107,81 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   Text(
                     'A verification link has been sent to:\n${_emailController.text.trim()}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.greySubtext,
-                      height: 1.4,
-                    ),
+                    style: const TextStyle(fontSize: 13, color: AppColors.greySubtext, height: 1.4),
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Please click the link in your email to activate your account.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.greySubtext,
-                    ),
+                    style: TextStyle(fontSize: 12, color: AppColors.greySubtext),
                   ),
+                  if (dialogError != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              dialogError!,
+                              style: const TextStyle(color: Colors.redAccent, fontSize: 12, height: 1.3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
               actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               actions: [
-                // 1. Nút kiểm tra trạng thái xác thực
                 ElevatedButton(
                   onPressed: _isChecking
                       ? null
                       : () async {
-                          setDialogState(() => _isChecking = true);
-                          final user = FirebaseAuth.instance.currentUser;
-                          if (user != null) {
-                            await user.reload();
-                            final refreshedUser = FirebaseAuth.instance.currentUser;
+                          setDialogState(() {
+                            _isChecking = true;
+                            dialogError = null;
+                          });
 
-                            if (refreshedUser != null && refreshedUser.emailVerified) {
-                              _resendTimer?.cancel();
-                              if (mounted) {
-                                Navigator.of(dialogContext).pop();
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(
-                                    builder: (_) => BmrTdeeCalculatorScreen(
-                                      onSetupCompleted: () {
-                                        Navigator.of(context).pushAndRemoveUntil(
-                                          MaterialPageRoute(
-                                            builder: (_) => MainNavigationShell(
-                                              logController: DailyLogController(),
-                                              themeController: ThemeController(),
-                                            ),
+                          // View chỉ gọi qua Controller
+                          final isVerified = await _controller.checkEmailVerified();
+                          if (isVerified) {
+                            _resendTimer?.cancel();
+                            if (mounted) {
+                              Navigator.of(dialogContext).pop();
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (_) => BmrTdeeCalculatorScreen(
+                                    onSetupCompleted: () {
+                                      Navigator.of(context).pushAndRemoveUntil(
+                                        MaterialPageRoute(
+                                          builder: (_) => MainNavigationShell(
+                                            logController: DailyLogController(),
+                                            themeController: ThemeController(),
                                           ),
-                                          (route) => false,
-                                        );
-                                      },
-                                    ),
+                                        ),
+                                        (route) => false,
+                                      );
+                                    },
                                   ),
-                                );
-                              }
-                              return;
+                                ),
+                              );
                             }
+                            return;
                           }
 
-                          setDialogState(() => _isChecking = false);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Email not verified yet. Please check your inbox or spam folder!'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          }
+                          setDialogState(() {
+                            _isChecking = false;
+                            dialogError = 'Email not verified yet. Please check your inbox or spam folder!';
+                          });
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.lime,
@@ -199,43 +202,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                 ),
                 const SizedBox(height: 10),
-
-                // 2. Nút gửi lại link kích hoạt có đếm lùi 30s
                 Center(
                   child: TextButton(
                     onPressed: _canResend
                         ? () async {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user != null) {
-                              await user.sendEmailVerification();
-                              _startCooldownTimer(); // Reset đếm lại 30s ở mỗi lần click
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('A new verification link has been sent!'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              }
+                            final success = await _controller.resendVerificationEmail();
+                            if (success) {
+                              setDialogState(() => dialogError = null);
+                              _startCooldownTimer();
                             }
                           }
                         : null,
                     child: Text(
-                      _canResend
-                          ? 'Resend verification link'
-                          : 'Resend link in ${_countdown}s',
+                      _canResend ? 'Resend verification link' : 'Resend link in ${_countdown}s',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: _canResend
-                            ? (isDark ? AppColors.lime : Colors.black)
-                            : AppColors.greySubtext,
+                        color: _canResend ? (isDark ? AppColors.lime : Colors.black) : AppColors.greySubtext,
                       ),
                     ),
                   ),
                 ),
-
-                // 3. Nút Hủy: Tự động xóa user khỏi Firebase Auth ngay lập tức
                 Center(
                   child: TextButton(
                     onPressed: () async {
@@ -243,21 +230,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       await _controller.cancelRegistration();
                       if (mounted) {
                         Navigator.of(dialogContext).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Registration cancelled. Account removed.'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
                       }
                     },
                     child: const Text(
-                      'Cancel Registration',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      'Cancel & Delete Account',
+                      style: TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ),
@@ -290,9 +267,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = Theme.of(context).colorScheme.surface;
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
-    final faintHintColor = isDark
-        ? Colors.white.withOpacity(0.25)
-        : Colors.black.withOpacity(0.25);
+    final faintHintColor = isDark ? Colors.white.withOpacity(0.25) : Colors.black.withOpacity(0.25);
 
     return Scaffold(
       appBar: AppBar(
@@ -325,11 +300,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         child: const Center(
                           child: Text(
                             'M',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.black,
-                            ),
+                            style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.black),
                           ),
                         ),
                       ),
@@ -338,11 +309,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     Text(
                       'Create Account',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                      ),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: textColor),
                     ),
                     const SizedBox(height: 4),
                     const Text(
@@ -368,7 +335,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ),
 
-                    // 1. Full Name
                     _buildInputContainer(
                       cardColor: cardColor,
                       child: TextField(
@@ -385,7 +351,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // 2. Email
                     _buildInputContainer(
                       cardColor: cardColor,
                       child: TextField(
@@ -403,7 +368,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // 3. Password
                     _buildInputContainer(
                       cardColor: cardColor,
                       child: TextField(
@@ -416,9 +380,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           border: InputBorder.none,
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _controller.obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
+                              _controller.obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                               color: AppColors.greySubtext,
                               size: 20,
                             ),
@@ -429,7 +391,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // 4. Confirm Password
                     _buildInputContainer(
                       cardColor: cardColor,
                       child: TextField(
@@ -442,9 +403,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           border: InputBorder.none,
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _controller.obscureConfirmPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
+                              _controller.obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                               color: AppColors.greySubtext,
                               size: 20,
                             ),
@@ -462,33 +421,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       child: _controller.isLoading
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.black,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                             )
-                          : const Text(
-                              'Create Account',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
+                          : const Text('Create Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     ),
                     const SizedBox(height: 20),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          'Already have an account? ',
-                          style: TextStyle(color: AppColors.greySubtext, fontSize: 13),
-                        ),
+                        const Text('Already have an account? ', style: TextStyle(color: AppColors.greySubtext, fontSize: 13)),
                         GestureDetector(
                           onTap: widget.onNavigateToLogin,
                           child: Text(
@@ -515,10 +463,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   Widget _buildInputContainer({required Color cardColor, required Widget child}) {
     return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(16)),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: child,
     );

@@ -3,7 +3,6 @@ import '../../controllers/auth_controller.dart';
 import '../../core/constants/app_colors.dart';
 import 'sign_up_screen.dart';
 import 'forgot_password_screen.dart';
-import 'set_password_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   final VoidCallback onLoginSuccess;
