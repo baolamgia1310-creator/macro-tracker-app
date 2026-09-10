@@ -12,6 +12,9 @@ key.properties
 **/android/key.properties
 
 # File biến môi trường
+# Security & Secrets
+secrets.json
+*.env
 .env
 .env.*
 
