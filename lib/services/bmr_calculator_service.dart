@@ -23,17 +23,26 @@ class MacroTarget {
     required this.targetCarbsGrams,
     required this.targetFatGrams,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'targetCalories': targetCalories,
+      'targetProteinGrams': targetProteinGrams,
+      'targetCarbsGrams': targetCarbsGrams,
+      'targetFatGrams': targetFatGrams,
+    };
+  }
 }
 
 class BmrCalculatorService {
-  // 1. Tính BMI chuẩn: kg / (m)^2
+  // 1. Chỉ số BMI chuẩn WHO
   double calculateBMI(double weightKg, double heightCm) {
     if (heightCm <= 0) return 0.0;
     final heightM = heightCm / 100;
     return weightKg / (heightM * heightM);
   }
 
-  // 2. Phân loại 8 cấp bậc BMI chuẩn y khoa WHO
+  // 2. Phân loại 8 cấp bậc BMI y khoa
   BmiCategory getBmiCategory(double bmi) {
     if (bmi < 16.0) return BmiCategory.severeThinness;
     if (bmi < 17.0) return BmiCategory.moderateThinness;
@@ -45,7 +54,6 @@ class BmrCalculatorService {
     return BmiCategory.obeseClass3;
   }
 
-  // 3. Tên hiển thị chuẩn tiếng Anh
   String getCategoryLabel(BmiCategory category) {
     switch (category) {
       case BmiCategory.severeThinness:
@@ -67,7 +75,7 @@ class BmrCalculatorService {
     }
   }
 
-  // 4. Lời khuyên định hướng chọn 1 trong 3 Option
+  // 3. Khuyến nghị dinh dưỡng lâm sàng theo phân nhóm BMI
   String getGoalRecommendation(BmiCategory category) {
     switch (category) {
       case BmiCategory.severeThinness:
@@ -86,7 +94,7 @@ class BmrCalculatorService {
     }
   }
 
-  // 5. Công thức Mifflin-St Jeor (1990)
+  // 4. Công thức Mifflin-St Jeor (1990)
   double calculateBMR({
     required double weightKg,
     required double heightCm,
@@ -100,7 +108,7 @@ class BmrCalculatorService {
     }
   }
 
-  // 6. Tính TDEE theo hệ số vận động PAL
+  // 5. Tính TDEE theo hệ số vận động PAL
   double calculateTDEE(double bmr, ActivityLevel activityLevel) {
     switch (activityLevel) {
       case ActivityLevel.sedentary:
@@ -114,7 +122,7 @@ class BmrCalculatorService {
     }
   }
 
-  // 7. Phân bổ Calo & Macro có kiểm soát an toàn theo phân loại BMI
+  // 6. Phân bổ Calo & Macro có ngưỡng an toàn (Safety Floor)
   MacroTarget calculateTarget({
     required double bmr,
     required double tdee,
@@ -148,13 +156,11 @@ class BmrCalculatorService {
 
       case GoalType.muscleGain:
         if (bmi >= 25.0) {
-          // Khi BMI >= 25: Áp dụng thặng dư tối thiểu (+100 kcal) kèm lượng đạm cao
           calories = tdee + 100;
           proteinRatio = 0.35;
           carbsRatio = 0.45;
           fatRatio = 0.20;
         } else {
-          // Người có BMI bình thường hoặc gầy: Thặng dư tiêu chuẩn (+300 kcal)
           calories = tdee + 300;
           proteinRatio = 0.30;
           carbsRatio = 0.50;

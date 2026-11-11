@@ -63,11 +63,13 @@ class DailyDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Vòng tròn calo tiến độ
-                MacroProgressRing(
-                  consumedCalories: logController.totalConsumedCalories,
-                  targetCalories: logController.target.targetCalories,
-                  progressPercent: logController.calorieProgress,
+                // 1. Vòng tròn calo tiến độ (Bọc RepaintBoundary cô lập GPU vẽ 120Hz)
+                RepaintBoundary(
+                  child: MacroProgressRing(
+                    consumedCalories: logController.totalConsumedCalories,
+                    targetCalories: logController.target.targetCalories,
+                    progressPercent: logController.calorieProgress,
+                  ),
                 ),
                 const SizedBox(height: 14),
 
@@ -116,34 +118,34 @@ class DailyDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // 4. Danh sách các bữa ăn
+                // 4. Danh sách các bữa ăn (Đồng bộ số liệu thực tế từ Controller)
                 _buildMealItem(
                   context: context,
                   title: 'Breakfast',
-                  calories: '450 kcal',
+                  calories: logController.getMealCaloriesString('Breakfast'),
                   icon: Icons.free_breakfast_outlined,
-                  isCompleted: true,
+                  isCompleted: logController.isMealCompleted('Breakfast'),
                 ),
                 _buildMealItem(
                   context: context,
                   title: 'Lunch',
-                  calories: '620 kcal',
+                  calories: logController.getMealCaloriesString('Lunch'),
                   icon: Icons.lunch_dining_outlined,
-                  isCompleted: true,
+                  isCompleted: logController.isMealCompleted('Lunch'),
                 ),
                 _buildMealItem(
                   context: context,
                   title: 'Dinner',
-                  calories: '-- kcal',
+                  calories: logController.getMealCaloriesString('Dinner'),
                   icon: Icons.dinner_dining_outlined,
-                  isCompleted: false,
+                  isCompleted: logController.isMealCompleted('Dinner'),
                 ),
                 _buildMealItem(
                   context: context,
                   title: 'Snacks',
-                  calories: '-- kcal',
+                  calories: logController.getMealCaloriesString('Snacks'),
                   icon: Icons.cookie_outlined,
-                  isCompleted: false,
+                  isCompleted: logController.isMealCompleted('Snacks'),
                 ),
                 const SizedBox(height: 20),
               ],

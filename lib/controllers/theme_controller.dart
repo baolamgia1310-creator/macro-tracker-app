@@ -33,9 +33,13 @@ class ThemeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Giữ phương thức toggle cũ để tương thích các nút bấm nhanh
-  void toggleTheme(bool isDark) {
-    _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+  // Hỗ trợ cả 2 cách gọi: truyền giá trị cụ thể hoặc đảo trạng thái tự động
+  void toggleTheme([bool? isDark]) {
+    if (isDark != null) {
+      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    } else {
+      _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    }
     notifyListeners();
   }
 }

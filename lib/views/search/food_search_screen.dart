@@ -5,10 +5,12 @@ import '../../models/food_item.dart';
 
 class FoodSearchScreen extends StatefulWidget {
   final Function(FoodItem food, double grams)? onFoodAdded;
+  final String? mealType;
 
   const FoodSearchScreen({
     super.key,
     this.onFoodAdded,
+    this.mealType,
   });
 
   @override
@@ -75,35 +77,54 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Thanh Categories phẳng chuẩn ảnh thiết kế
+              // 1. Thanh Categories phẳng chuẩn thiết kế gốc
               _buildCategoryBar(context: context, isDark: isDark),
               const SizedBox(height: 6),
 
-              // 2. Danh sách thực phẩm
+              // 2. Danh sách thực phẩm cuộn mượt 120Hz
+              // Thay thế đoạn Expanded danh sách trong build() của lib/views/search/food_search_screen.dart:
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                  itemCount: _controller.filteredFoods.length,
-                  itemBuilder: (context, index) {
-                    final food = _controller.filteredFoods[index];
-                    final isCurrentFood = _controller.selectedFood?.id == food.id;
+                child: _controller.isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.lime,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : _controller.filteredFoods.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No foods found. Try "egg", "beef", "rice"...',
+                              style: TextStyle(
+                                color: textColor.withOpacity(0.5),
+                                fontSize: 14,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                            itemCount: _controller.filteredFoods.length,
+                            itemBuilder: (context, index) {
+                              final food = _controller.filteredFoods[index];
+                              final isCurrentFood = _controller.selectedFood?.id == food.id;
 
-                    return _buildFoodItemCard(
-                      context: context,
-                      food: food,
-                      isSelected: isCurrentFood,
-                      onTap: () => _controller.selectFood(food),
-                    );
-                  },
-                ),
+                              return _buildFoodItemCard(
+                                context: context,
+                                food: food,
+                                isSelected: isCurrentFood,
+                                onTap: () => _controller.selectFood(food),
+                              );
+                            },
+                          ),
               ),
-
-              // 3. Khối định lượng Select Amount chân trang
-              _buildSelectAmountBottomSection(
-                context: context,
-                isDark: isDark,
-                cardColor: cardColor,
-                textColor: textColor,
+              // 3. Khối định lượng Select Amount chân trang (Cô lập render 120Hz bằng RepaintBoundary)
+              RepaintBoundary(
+                child: _buildSelectAmountBottomSection(
+                  context: context,
+                  isDark: isDark,
+                  cardColor: cardColor,
+                  textColor: textColor,
+                ),
               ),
             ],
           );
@@ -112,57 +133,56 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     );
   }
 
-Widget _buildCategoryBar({
-  required BuildContext context,
-  required bool isDark,
-}) {
-  return SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-    child: Row(
-      children: _controller.categories.map((cat) {
-        final isSelected = _controller.selectedCategory == cat;
+  Widget _buildCategoryBar({
+    required BuildContext context,
+    required bool isDark,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Row(
+        children: _controller.categories.map((cat) {
+          final isSelected = _controller.selectedCategory == cat;
 
-        return Padding(
-          padding: const EdgeInsets.only(right: 10.0),
-          child: GestureDetector(
-            onTap: () => _controller.setCategory(cat),
-            behavior: HitTestBehavior.opaque,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              // Tăng đệm chiều ngang và dọc để nút to và thoáng hơn
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                // Mục chọn: nền Lime, mục chưa chọn: nền trong suốt/card nhẹ
-                color: isSelected 
-                    ? AppColors.lime 
-                    : (isDark ? AppColors.darkCard : Colors.white),
-                borderRadius: BorderRadius.circular(24),
-                // Viền ngoài nét rõ 1.5px
-                border: Border.all(
+          return Padding(
+            padding: const EdgeInsets.only(right: 10.0),
+            child: GestureDetector(
+              onTap: () => _controller.setCategory(cat),
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
                   color: isSelected
                       ? AppColors.lime
-                      : (isDark ? Colors.white.withOpacity(0.15) : Colors.black.withOpacity(0.12)),
-                  width: 1.5,
+                      : (isDark ? AppColors.darkCard : Colors.white),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.lime
+                        : (isDark
+                            ? Colors.white.withOpacity(0.15)
+                            : Colors.black.withOpacity(0.12)),
+                    width: 1.5,
+                  ),
                 ),
-              ),
-              child: Text(
-                cat,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                  color: isSelected
-                      ? Colors.black
-                      : (isDark ? Colors.grey[400] : Colors.grey[700]),
+                child: Text(
+                  cat,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    color: isSelected
+                        ? Colors.black
+                        : (isDark ? Colors.grey[400] : Colors.grey[700]),
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      }).toList(),
-    ),
-  );
-}
+          );
+        }).toList(),
+      ),
+    );
+  }
 
   Widget _buildFoodItemCard({
     required BuildContext context,
@@ -336,12 +356,20 @@ Widget _buildCategoryBar({
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
-                if (_controller.selectedFood != null && widget.onFoodAdded != null) {
+              onPressed: () async {
+                if (_controller.selectedFood == null) return;
+
+                if (widget.onFoodAdded != null) {
                   widget.onFoodAdded!(
                     _controller.selectedFood!,
                     _controller.selectedGrams,
                   );
+                  Navigator.of(context).maybePop();
+                } else if (widget.mealType != null) {
+                  final success = await _controller.logFood(mealType: widget.mealType!);
+                  if (success && mounted) {
+                    Navigator.of(context).maybePop();
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
