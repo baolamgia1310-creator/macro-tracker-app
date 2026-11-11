@@ -4,7 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../models/food_item.dart';
 
 class FoodSearchScreen extends StatefulWidget {
-  final Function(FoodItem food, double grams)? onFoodAdded;
+  final Function(FoodItem food, double amount)? onFoodAdded;
   final String? mealType;
 
   const FoodSearchScreen({
@@ -14,12 +14,18 @@ class FoodSearchScreen extends StatefulWidget {
   });
 
   @override
-  State<FoodSearchScreen> createState() => _FoodSearchScreenState();
+  State createState() => _FoodSearchScreenState();
 }
 
-class _FoodSearchScreenState extends State<FoodSearchScreen> {
-  final FoodSearchController _controller = FoodSearchController();
+class _FoodSearchScreenState extends State {
+  late final FoodSearchController _controller;
   final TextEditingController _searchTextController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = FoodSearchController();
+  }
 
   @override
   void dispose() {
@@ -55,7 +61,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             onChanged: _controller.setSearchQuery,
             style: TextStyle(fontSize: 14, color: textColor),
             decoration: const InputDecoration(
-              hintText: 'Search foods...',
+              hintText: 'Tìm món ăn, phở, thịt bò...',
               hintStyle: TextStyle(color: AppColors.greySubtext, fontSize: 13),
               prefixIcon: Icon(Icons.search, size: 20, color: AppColors.greySubtext),
               border: InputBorder.none,
@@ -77,12 +83,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Thanh Categories phẳng chuẩn thiết kế gốc
               _buildCategoryBar(context: context, isDark: isDark),
               const SizedBox(height: 6),
-
-              // 2. Danh sách thực phẩm cuộn mượt 120Hz
-              // Thay thế đoạn Expanded danh sách trong build() của lib/views/search/food_search_screen.dart:
               Expanded(
                 child: _controller.isLoading
                     ? const Center(
@@ -94,7 +96,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                     : _controller.filteredFoods.isEmpty
                         ? Center(
                             child: Text(
-                              'No foods found. Try "egg", "beef", "rice"...',
+                              'Không tìm thấy món ăn phù hợp.',
                               style: TextStyle(
                                 color: textColor.withOpacity(0.5),
                                 fontSize: 14,
@@ -117,7 +119,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                             },
                           ),
               ),
-              // 3. Khối định lượng Select Amount chân trang (Cô lập render 120Hz bằng RepaintBoundary)
               RepaintBoundary(
                 child: _buildSelectAmountBottomSection(
                   context: context,
@@ -192,6 +193,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final unitSubtext = food.servingType == 'serving' ? '1 suất' : '100g';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -236,16 +238,21 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 Row(
                   children: [
                     Text(
-                      '${food.caloriesPer100g.toInt()} kcal',
+                      '${food.calories.round()} kcal',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: isDark ? AppColors.lime : Colors.black,
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '/$unitSubtext',
+                      style: const TextStyle(fontSize: 11, color: AppColors.greySubtext),
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      '• P ${food.proteinPer100g}g  C ${food.carbsPer100g}g  F ${food.fatPer100g}g',
+                      '• P \({food.protein}g  C\){food.carbs}g  F ${food.fat}g',
                       style: const TextStyle(fontSize: 11, color: AppColors.greySubtext),
                     ),
                   ],
@@ -284,7 +291,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     required Color cardColor,
     required Color textColor,
   }) {
-    final foodName = _controller.selectedFood?.name ?? 'Select a food';
+    final foodName = _controller.selectedFood?.name ?? 'Chọn món ăn';
+    final caloValue = _controller.calculatedCalories.round();
 
     return Container(
       width: double.infinity,
@@ -315,23 +323,23 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             ),
             const SizedBox(height: 2),
             Text(
-              'Food: $foodName',
+              'Món: \(foodName •\)caloValue kcal',
               style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
             ),
             const SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildGramCircleButton(
+                _buildAmountCircleButton(
                   icon: Icons.remove,
-                  onTap: _controller.decrementGrams,
+                  onTap: _controller.decrementAmount,
                   isDark: isDark,
                 ),
                 const SizedBox(width: 32),
                 Column(
                   children: [
                     Text(
-                      '${_controller.selectedGrams.toInt()}',
+                      _controller.amountLabel,
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
@@ -339,16 +347,16 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                         letterSpacing: -0.5,
                       ),
                     ),
-                    const Text(
-                      'grams',
-                      style: TextStyle(fontSize: 12, color: AppColors.greySubtext),
+                    Text(
+                      _controller.unitLabel,
+                      style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
                     ),
                   ],
                 ),
                 const SizedBox(width: 32),
-                _buildGramCircleButton(
+                _buildAmountCircleButton(
                   icon: Icons.add,
-                  onTap: _controller.incrementGrams,
+                  onTap: _controller.incrementAmount,
                   isDark: isDark,
                   isPrimary: true,
                 ),
@@ -359,18 +367,18 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
               onPressed: () async {
                 if (_controller.selectedFood == null) return;
 
-                if (widget.onFoodAdded != null) {
-                  widget.onFoodAdded!(
-                    _controller.selectedFood!,
-                    _controller.selectedGrams,
-                  );
-                  Navigator.of(context).maybePop();
-                } else if (widget.mealType != null) {
-                  final success = await _controller.logFood(mealType: widget.mealType!);
-                  if (success && mounted) {
-                    Navigator.of(context).maybePop();
-                  }
-                }
+                // if (widget.onFoodAdded != null) {
+                //   widget.onFoodAdded!(
+                //     _controller.selectedFood!,
+                //     _controller.selectedAmount,
+                //   );
+                //   Navigator.of(context).maybePop();
+                // } else if (widget.mealType != null) {
+                //   final success = await _controller.logFood(mealType: widget.mealType!);
+                //   if (success && mounted) {
+                //     Navigator.of(context).maybePop();
+                //   }
+                // }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.lime,
@@ -395,7 +403,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     );
   }
 
-  Widget _buildGramCircleButton({
+  Widget _buildAmountCircleButton({
     required IconData icon,
     required VoidCallback onTap,
     required bool isDark,
