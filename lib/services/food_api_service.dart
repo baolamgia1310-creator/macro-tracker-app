@@ -1,27 +1,64 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../models/food_item.dart';
 
-typedef FoodList = List;
+typedef FoodList = List<FoodItem>;
 
 class FoodApiService {
   final http.Client _client;
 
-  static const String _apiKey = String.fromEnvironment(
+  // 1. Ưu tiên đọc từ --dart-define-from-file=secrets.json
+  static const String _envApiKey = String.fromEnvironment(
     'USDA_API_KEY',
     defaultValue: '',
   );
 
+  static String? _cachedRuntimeKey;
+
   FoodApiService({http.Client? client}) : _client = client ?? http.Client();
 
-  Future searchExternalFoods(String query) async {
+  // Đảm bảo luôn lấy được API Key dù chạy bằng nút Run hay Terminal
+  Future<String> _resolveApiKey() async {
+    if (_envApiKey.trim().isNotEmpty) {
+      return _envApiKey.trim();
+    }
+    if (_cachedRuntimeKey != null && _cachedRuntimeKey!.isNotEmpty) {
+      return _cachedRuntimeKey!;
+    }
+    try {
+      final secretStr = await rootBundle.loadString('secrets.json');
+      final secretMap = jsonDecode(secretStr) as Map<String, dynamic>;
+      final keyFromFile = secretMap['USDA_API_KEY']?.toString().trim() ?? '';
+      if (keyFromFile.isNotEmpty) {
+        _cachedRuntimeKey = keyFromFile;
+        return keyFromFile;
+      }
+    } catch (_) {}
+
+    // Fallback an toàn để API luôn được gọi kể cả khi quên truyền file
+    return 'DEMO_KEY';
+  }
+
+  Future<FoodList> searchExternalFoods(
+    String query, {
+    int pageSize = 10,
+    int pageNumber = 1,
+  }) async {
     final cleanQuery = query.trim();
-    if (cleanQuery.isEmpty || _apiKey.isEmpty) {
+    if (cleanQuery.isEmpty) {
       return [];
     }
 
+    final apiKey = await _resolveApiKey();
+
     final url = Uri.parse(
-      'https://api.nal.usda.gov/fdc/v1/foods/search?api_key=\({_apiKey.trim()}&query=\){Uri.encodeComponent(cleanQuery)}&pageSize=20',
+      'https://api.nal.usda.gov/fdc/v1/foods/search'
+      '?api_key=$apiKey'
+      '&query=${Uri.encodeComponent(cleanQuery)}'
+      '&pageSize=$pageSize'
+      '&pageNumber=$pageNumber',
     );
 
     try {
@@ -31,17 +68,19 @@ class FoodApiService {
       ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode != 200) {
+        debugPrint('[USDA API] HTTP ${response.statusCode}: ${response.body}');
         return [];
       }
 
-      final Map data = jsonDecode(response.body);
-      final List foodsJson = data['foods'] as List? ?? [];
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      final List<dynamic> foodsJson = data['foods'] as List<dynamic>? ?? [];
       final FoodList items = [];
 
       for (final item in foodsJson) {
-        if (item is! Map) continue;
+        if (item is! Map<String, dynamic>) continue;
 
-        final List nutrients = item['foodNutrients'] as List? ?? [];
+        final List<dynamic> nutrients =
+            item['foodNutrients'] as List<dynamic>? ?? [];
 
         double calories = 0.0;
         double protein = 0.0;
@@ -49,22 +88,30 @@ class FoodApiService {
         double fat = 0.0;
 
         for (final n in nutrients) {
-          if (n is! Map) continue;
+          if (n is! Map<String, dynamic>) continue;
 
           final int id = (n['nutrientId'] as num?)?.toInt() ?? 0;
           final String number = n['nutrientNumber']?.toString() ?? '';
-          final String name = (n['nutrientName'] ?? '').toString().toLowerCase();
+          final String name =
+              (n['nutrientName'] ?? '').toString().toLowerCase();
           final double val = (n['value'] as num?)?.toDouble() ?? 0.0;
 
           if (id == 1008 || number == '208' || name.contains('energy')) {
             calories = (n['unitName']?.toString().toUpperCase() == 'KJ')
                 ? val / 4.184
                 : val;
-          } else if (id == 1003 || number == '203' || name.contains('protein')) {
+          } else if (id == 1003 ||
+              number == '203' ||
+              name.contains('protein')) {
             protein = val;
-          } else if (id == 1005 || number == '205' || name.contains('carbohydrate')) {
+          } else if (id == 1005 ||
+              number == '205' ||
+              name.contains('carbohydrate')) {
             carbs = val;
-          } else if (id == 1004 || number == '204' || name.contains('total lipid') || name.contains('fat')) {
+          } else if (id == 1004 ||
+              number == '204' ||
+              name.contains('total lipid') ||
+              name.contains('fat')) {
             fat = val;
           }
         }
@@ -93,7 +140,8 @@ class FoodApiService {
       }
 
       return items;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[USDA API] Error: $e');
       return [];
     }
   }

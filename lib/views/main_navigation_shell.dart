@@ -22,61 +22,136 @@ class MainNavigationShell extends StatefulWidget {
 }
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
+  late final PageController _pageController;
   int _currentIndex = 0;
+  bool _isProgrammaticScroll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // Hiệu ứng lướt trang mượt mà khi bấm vào icon dưới thanh NavigationBar
+  Future<void> _onTabSelected(int index) async {
+    if (_currentIndex == index) return;
+
+    setState(() {
+      _currentIndex = index;
+      _isProgrammaticScroll = true;
+    });
+
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+
+    if (mounted) {
+      _isProgrammaticScroll = false;
+    }
+  }
+
+  // Đồng bộ nút sáng dưới thanh NavigationBar khi người dùng dùng tay lướt ngang
+  void _onPageChanged(int index) {
+    if (!_isProgrammaticScroll && _currentIndex != index) {
+      setState(() {
+        _currentIndex = index;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.themeController.isDarkMode(context);
+    return ListenableBuilder(
+      listenable: widget.themeController,
+      builder: (context, _) {
+        final isDark = widget.themeController.isDarkMode(context);
 
-    // Danh sách 4 tab chính, truyền đúng các controller cần thiết
-    final screens = [
-      DailyDashboardScreen(
-        logController: widget.logController,
-        themeController: widget.themeController,
-      ),
-      const FoodSearchScreen(),
-      const AnalyticsScreen(),
-      ProfileScreen(
-        themeController: widget.themeController,
-      ),
-    ];
-
-    return Scaffold(
-      // Giữ nguyên trạng thái (Scroll, input) của từng màn hình khi đổi tab
-      body: IndexedStack(
-        index: _currentIndex,
-        children: screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        indicatorColor: AppColors.lime,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard, color: Colors.black),
-            label: 'Dashboard',
+        return Scaffold(
+          body: PageView(
+            controller: _pageController,
+            onPageChanged: _onPageChanged,
+            // ClampingScrollPhysics chặn lướt quá biên ở trang đầu (Dashboard) và trang cuối (Profile)
+            physics: const ClampingScrollPhysics(),
+            children: [
+              _KeepAliveTab(
+                child: DailyDashboardScreen(
+                  logController: widget.logController,
+                  themeController: widget.themeController,
+                ),
+              ),
+              const _KeepAliveTab(
+                child: FoodSearchScreen(),
+              ),
+              const _KeepAliveTab(
+                child: AnalyticsScreen(),
+              ),
+              _KeepAliveTab(
+                child: ProfileScreen(
+                  themeController: widget.themeController,
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_outlined),
-            selectedIcon: Icon(Icons.restaurant, color: Colors.black),
-            label: 'Food',
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _currentIndex,
+            backgroundColor: isDark ? AppColors.darkCard : AppColors.lightCard,
+            indicatorColor: AppColors.lime,
+            onDestinationSelected: _onTabSelected,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.dashboard_outlined),
+                selectedIcon: Icon(Icons.dashboard, color: Colors.black),
+                label: 'Dashboard',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.restaurant_outlined),
+                selectedIcon: Icon(Icons.restaurant, color: Colors.black),
+                label: 'Food',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.insights_outlined),
+                selectedIcon: Icon(Icons.insights, color: Colors.black),
+                label: 'Analytics',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person, color: Colors.black),
+                label: 'Profile',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.insights_outlined),
-            selectedIcon: Icon(Icons.insights, color: Colors.black),
-            label: 'Analytics',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: Colors.black),
-            label: 'Profile',
-          ),
-        ],
-      ),
+        );
+      },
     );
+  }
+}
+
+// Giữ trạng thái của cả 4 tab luôn sống trên RAM khi lướt qua lại
+class _KeepAliveTab extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveTab({required this.child});
+
+  @override
+  State<_KeepAliveTab> createState() => _KeepAliveTabState();
+}
+
+class _KeepAliveTabState extends State<_KeepAliveTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

@@ -26,6 +26,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
     final subtextColor = isDark ? AppColors.darkSubtext : AppColors.lightSubtext;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final canPop = Navigator.of(context).canPop();
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
@@ -33,10 +34,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
+        automaticallyImplyLeading: false,
+        leading: canPop
+            ? IconButton(
+                icon: Icon(Icons.arrow_back, color: textColor),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
         title: Text(
           'Progress',
           style: TextStyle(
@@ -88,7 +92,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Khung Biểu đồ Cân nặng (Weight Trend)[cite: 2]
+                // 1. Khung Biểu đồ Cân nặng (Weight Trend)
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 20, 20, 16),
                   decoration: BoxDecoration(
@@ -132,7 +136,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // 2. Khung Biểu đồ Macro Adherence (Màu riêng từng chất)[cite: 1, 2]
+                // 2. Khung Biểu đồ Macro Adherence
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -164,7 +168,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // 3. Ba Thẻ Tóm Tắt Chân Trang[cite: 2]
+                // 3. Ba Thẻ Tóm Tắt Chân Trang
                 Row(
                   children: [
                     _buildStatCard(
@@ -229,7 +233,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   _controller.weeklyWeights[index].day,
-                  style: TextStyle(fontSize: 11, color: subtextColor, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: subtextColor,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               );
             },
@@ -287,92 +295,51 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  // Cấu hình Biểu đồ cột đã sửa triệt để 3 vấn đề
-BarChartData _buildMacroBarChartData(bool isDark, Color subtextColor) {
-  final barBgColor = isDark
-      ? Colors.white.withOpacity(0.04)
-      : Colors.black.withOpacity(0.04);
+  BarChartData _buildMacroBarChartData(bool isDark, Color subtextColor) {
+    final barBgColor = isDark
+        ? Colors.white.withOpacity(0.04)
+        : Colors.black.withOpacity(0.04);
 
-  return BarChartData(
-    alignment: BarChartAlignment.spaceAround,
-    maxY: 120, // Tăng lên 120 để đỉnh cột không bao giờ đè lên tiêu đề phía trên
-    gridData: const FlGridData(show: false),
-    borderData: FlBorderData(show: false),
-
-    // Cấu hình hiển thị số trên đỉnh cột
-    barTouchData: BarTouchData(
-      enabled: false,
-      touchTooltipData: BarTouchTooltipData(
-        // Xóa khung nền đen thô cứng, để chữ nổi trực tiếp trên biểu đồ
-        getTooltipColor: (group) => Colors.transparent,
-        tooltipPadding: EdgeInsets.zero,
-        tooltipMargin: 8,
-        getTooltipItem: (group, groupIndex, rod, rodIndex) {
-          return BarTooltipItem(
-            '${rod.toY.toInt()}', // CHỈ HIỂN THỊ SỐ NGUYÊN (78, 82, 85)
-            TextStyle(
-              color: isDark ? AppColors.darkText : AppColors.lightText,
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-            ),
-          );
-        },
-      ),
-    ),
-
-    titlesData: FlTitlesData(
-      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      bottomTitles: AxisTitles(
-        sideTitles: SideTitles(
-          showTitles: true,
-          reservedSize: 28,
-          getTitlesWidget: (value, meta) {
-            final titles = ['Protein', 'Carbs', 'Fat'];
-            final index = value.toInt();
-            if (index >= 0 && index < titles.length) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Text(
-                  titles[index],
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: subtextColor,
-                    fontWeight: FontWeight.w600,
+    return BarChartData(
+      alignment: BarChartAlignment.spaceAround,
+      maxY: 100,
+      gridData: const FlGridData(show: false),
+      borderData: FlBorderData(show: false),
+      titlesData: FlTitlesData(
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 28,
+            getTitlesWidget: (value, meta) {
+              final titles = ['Protein', 'Carbs', 'Fat'];
+              if (value.toInt() >= 0 && value.toInt() < titles.length) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    titles[value.toInt()],
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subtextColor,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          },
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ),
       ),
-    ),
-
-    // 3 Cột với bảng màu chuẩn: Xanh lá (Lime) -> Cyan -> Cam ấm
-    barGroups: [
-      _buildBarGroup(
-        0,
-        _controller.proteinAdherence * 100,
-        AppColors.lime, // Cột 1: Xanh lá thương hiệu
-        barBgColor,
-      ),
-      _buildBarGroup(
-        1,
-        _controller.carbsAdherence * 100,
-        AppColors.protein, // Cột 2: Xanh Cyan
-        barBgColor,
-      ),
-      _buildBarGroup(
-        2,
-        _controller.fatAdherence * 100,
-        AppColors.carbs, // Cột 3: Cam hổ phách
-        barBgColor,
-      ),
-    ],
-  );
-}
+      barGroups: [
+        _buildBarGroup(0, (_controller.proteinAdherence * 100), AppColors.protein, barBgColor),
+        _buildBarGroup(1, (_controller.carbsAdherence * 100), AppColors.carbs, barBgColor),
+        _buildBarGroup(2, (_controller.fatAdherence * 100), AppColors.fat, barBgColor),
+      ],
+    );
+  }
 
   BarChartGroupData _buildBarGroup(int x, double value, Color barColor, Color backColor) {
     return BarChartGroupData(
