@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/food_item.dart';
 import '../services/food_api_service.dart';
 
-typedef FoodList = List;
+typedef FoodList = List<FoodItem>;
 
 class FoodRepository {
   final FirebaseFirestore _firestore;
@@ -16,15 +16,17 @@ class FoodRepository {
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _apiService = apiService ?? FoodApiService();
 
-  Future getCatalogFoods() async {
-    if (_cachedCatalog != null) return _cachedCatalog!;
+  Future<FoodList> getCatalogFoods() async {
+    if (_cachedCatalog != null && _cachedCatalog!.isNotEmpty) {
+      return _cachedCatalog!;
+    }
 
     try {
       final QuerySnapshot snapshot =
           await _firestore.collection('catalog_foods').get();
 
       _cachedCatalog = snapshot.docs.map((doc) {
-        final data = doc.data() as Map?;
+        final data = doc.data() as Map<String, dynamic>?;
         return FoodItem.fromMap(doc.id, data);
       }).toList();
 
@@ -34,11 +36,13 @@ class FoodRepository {
     }
   }
 
-  Future searchLocalCatalog(String query) async {
+  Future<FoodList> searchLocalCatalog(String query) async {
     final FoodList catalog = await getCatalogFoods();
-    final String cleanQuery = _removeAccents(query.trim().toLowerCase());
+    final String cleanQuery = removeAccents(query.trim().toLowerCase());
 
-    if (cleanQuery.isEmpty) return catalog.take(40).toList();
+    if (cleanQuery.isEmpty) {
+      return catalog;
+    }
 
     return catalog.where((item) {
       return item.nameUnsigned.contains(cleanQuery) ||
@@ -46,11 +50,19 @@ class FoodRepository {
     }).toList();
   }
 
-  Future searchRemoteApi(String query) async {
-    return await _apiService.searchExternalFoods(query);
+  Future<FoodList> searchRemoteApi(
+    String query, {
+    int pageSize = 10,
+    int pageNumber = 1,
+  }) async {
+    return await _apiService.searchExternalFoods(
+      query,
+      pageSize: pageSize,
+      pageNumber: pageNumber,
+    );
   }
 
-  Future getUserCustomFoods(String uid) async {
+  Future<FoodList> getUserCustomFoods(String uid) async {
     if (uid.isEmpty) return [];
     try {
       final QuerySnapshot snapshot = await _firestore
@@ -60,7 +72,7 @@ class FoodRepository {
           .get();
 
       return snapshot.docs.map((doc) {
-        final data = doc.data() as Map?;
+        final data = doc.data() as Map<String, dynamic>?;
         return FoodItem.fromMap(doc.id, data);
       }).toList();
     } catch (_) {
@@ -68,7 +80,48 @@ class FoodRepository {
     }
   }
 
-  Future logFoodToMeal({
+  // Lưu món ăn do người dùng tự tạo lên Firebase
+  Future<void> createCustomFood({
+    required String uid,
+    required FoodItem food,
+  }) async {
+    if (uid.isEmpty) return;
+
+    final foodData = {
+      'id': food.id,
+      'name': food.name,
+      'name_unsigned': food.nameUnsigned,
+      'category': food.category,
+      'serving_type': food.servingType,
+      'unit_name': food.unitName,
+      'calories': food.calories,
+      'protein': food.protein,
+      'carbs': food.carbs,
+      'fat': food.fat,
+    };
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('custom_foods')
+        .doc(food.id)
+        .set(foodData, SetOptions(merge: true));
+  }
+
+  Future<void> deleteCustomFood({
+    required String uid,
+    required String foodId,
+  }) async {
+    if (uid.isEmpty || foodId.isEmpty) return;
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('custom_foods')
+        .doc(foodId)
+        .delete();
+  }
+  
+  Future<void> logFoodToMeal({
     required String uid,
     required String mealType,
     required FoodItem food,
@@ -98,20 +151,23 @@ class FoodRepository {
         .add(logData);
   }
 
-  static String _removeAccents(String str) {
+  static String removeAccents(String str) {
     var result = str;
     const accents = [
       'aàảãáạăằẳẵắặâầẩẫấậ',
       'AÀẢÃÁẠĂẰẲẴẮẶÂẦẨẪẤẬ',
-      'dđ', 'DĐ',
+      'dđ',
+      'DĐ',
       'eèẻẽéẹêềểễếệ',
       'EÈẺẼÉẸÊỀỂỄẾỆ',
-      'iìỉĩíị', 'IÌỈĨÍỊ',
+      'iìỉĩíị',
+      'IÌỈĨÍỊ',
       'oòỏõóọôồổỗốộơờởỡớợ',
       'OÒỎÕÓỌÔỒỔỖỐỘƠỜỞỠỚỢ',
       'uùủũúụưừửữứự',
       'UÙỦŨÚỤƯỪỬỮỨỰ',
-      'yỳỷỹýỵ', 'YỲỶỸÝỴ'
+      'yỳỷỹýỵ',
+      'YỲỶỸÝỴ'
     ];
     for (var group in accents) {
       final baseChar = group[0];
