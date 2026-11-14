@@ -9,22 +9,24 @@ typedef FoodList = List<FoodItem>;
 class FoodSearchController extends ChangeNotifier {
   final FoodRepository _foodRepository;
 
-  static const int _pageSize = 10;
+  static const int _pageSize = 15;
+  static const int _maxApiCacheItems = 50; // Chốt chặn phình RAM cho API
 
   final List<String> categories = const [
     'All',
-    'Dishes',
-    'Ingredients',
+    'Món ăn',
+    'Nguyên liệu',
     'USDA API',
     'My Foods'
   ];
 
   FoodSearchController({FoodRepository? foodRepository})
       : _foodRepository = foodRepository ?? FoodRepository() {
-    loadInitialData();
+    _initWithWarmCacheOrFetch();
   }
 
   Timer? _debounceTimer;
+  Timer? _feedbackTimer;
   int _latestSearchTimestamp = 0;
 
   FoodList _catalogFoods = [];
@@ -41,14 +43,18 @@ class FoodSearchController extends ChangeNotifier {
   int _visibleCount = _pageSize;
   int _apiPage = 1;
 
+  // Trạng thái phục vụ thêm nhiều món liên tiếp trong 1 bữa
+  int _addedCountInSession = 0;
+  bool _justAddedFeedback = false;
+
   FoodList get _allMatchedFoods {
     final query = _searchQuery.trim().toLowerCase();
     final cleanUnsigned = FoodRepository.removeAccents(query);
 
-    if (_selectedCategory == 'Dishes') {
+    if (_selectedCategory == 'Món ăn') {
       return _catalogFoods.where((f) => f.servingType == 'serving').toList();
     }
-    if (_selectedCategory == 'Ingredients') {
+    if (_selectedCategory == 'Nguyên liệu') {
       return _catalogFoods.where((f) => f.servingType == 'g').toList();
     }
     if (_selectedCategory == 'USDA API') {
@@ -88,6 +94,9 @@ class FoodSearchController extends ChangeNotifier {
   double get selectedAmount => _selectedAmount;
   double get selectedGrams => _selectedAmount;
 
+  int get addedCountInSession => _addedCountInSession;
+  bool get justAddedFeedback => _justAddedFeedback;
+
   String get amountLabel {
     if (_selectedFood?.servingType == 'serving') {
       return _selectedAmount == _selectedAmount.roundToDouble()
@@ -97,8 +106,9 @@ class FoodSearchController extends ChangeNotifier {
     return '${_selectedAmount.toInt()}';
   }
 
-  String get unitLabel =>
-      _selectedFood?.servingType == 'serving' ? 'servings' : 'grams';
+  String get unitLabel => _selectedFood?.servingType == 'serving'
+      ? (_selectedFood?.unitName ?? 'serving')
+      : 'grams';
 
   double get calculatedCalories {
     if (_selectedFood == null) return 0.0;
@@ -111,7 +121,36 @@ class FoodSearchController extends ChangeNotifier {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _feedbackTimer?.cancel();
     super.dispose();
+  }
+
+  // Nếu RAM Cache đã có sẵn -> Hiển thị tức thì 0ms không cần xoay loading
+  void _initWithWarmCacheOrFetch() {
+    if (_foodRepository.hasWarmCache) {
+      _catalogFoods = _foodRepository.cachedCatalog;
+      _customFoods = _foodRepository.cachedCustomFoods;
+      _apiFoods = _foodRepository.cachedDefaultApiFoods;
+      _isLoading = false;
+
+      if (filteredFoods.isNotEmpty && _selectedFood == null) {
+        _selectedFood = filteredFoods.first;
+        _selectedAmount =
+            _selectedFood!.servingType == 'serving' ? 1.0 : 100.0;
+      }
+
+      // Đồng bộ ngầm custom foods nếu chưa tải cho user hiện tại
+      final String? uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && uid.isNotEmpty && _customFoods.isEmpty) {
+        _foodRepository.getUserCustomFoods(uid).then((list) {
+          _customFoods = list;
+          notifyListeners();
+        });
+      }
+      return;
+    }
+
+    loadInitialData();
   }
 
   Future<void> loadInitialData() async {
@@ -129,7 +168,11 @@ class FoodSearchController extends ChangeNotifier {
 
     final results = await Future.wait([
       _foodRepository.searchLocalCatalog(''),
-      _foodRepository.searchRemoteApi('chicken', pageSize: _pageSize, pageNumber: 1),
+      _foodRepository.searchRemoteApi(
+        'chicken',
+        pageSize: 10,
+        pageNumber: 1,
+      ),
     ]);
 
     _catalogFoods = results[0];
@@ -149,15 +192,13 @@ class FoodSearchController extends ChangeNotifier {
     final totalAvailable = _allMatchedFoods.length;
 
     if (_visibleCount < totalAvailable) {
-      _isLoadingMore = true;
-      notifyListeners();
-
-      await Future.delayed(const Duration(milliseconds: 150));
       _visibleCount += _pageSize;
-      _isLoadingMore = false;
       notifyListeners();
       return;
     }
+
+    // Chặn gọi thêm API nếu đã chạm trần 50 món trên RAM
+    if (_apiFoods.length >= _maxApiCacheItems) return;
 
     if (_selectedCategory == 'USDA API' || _selectedCategory == 'All') {
       _isLoadingMore = true;
@@ -171,12 +212,13 @@ class FoodSearchController extends ChangeNotifier {
 
         final nextApiBatch = await _foodRepository.searchRemoteApi(
           queryToFetch,
-          pageSize: _pageSize,
+          pageSize: 10,
           pageNumber: _apiPage,
         );
 
         if (nextApiBatch.isNotEmpty) {
-          _apiFoods = [..._apiFoods, ...nextApiBatch];
+          final combined = [..._apiFoods, ...nextApiBatch];
+          _apiFoods = combined.take(_maxApiCacheItems).toList();
           _visibleCount += _pageSize;
         }
       } finally {
@@ -190,37 +232,48 @@ class FoodSearchController extends ChangeNotifier {
     _searchQuery = query;
     _visibleCount = _pageSize;
     _apiPage = 1;
+
+    // Lọc tức thì trên RAM (0ms) đối với kho món ăn trong nước & My Foods
+    if (_foodRepository.hasWarmCache) {
+      _catalogFoods = _foodRepository.filterCachedCatalogSync(query);
+      if (filteredFoods.isNotEmpty) {
+        selectFood(filteredFoods.first);
+      }
+    }
     notifyListeners();
 
     _debounceTimer?.cancel();
     final trimmed = query.trim();
 
+    if (trimmed.isEmpty) {
+      _apiFoods = _foodRepository.cachedDefaultApiFoods;
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
+
+    // Chỉ gọi mạng ngầm cho phần USDA API sau khi ngừng gõ 350ms
     _debounceTimer = Timer(const Duration(milliseconds: 350), () async {
       final requestTime = DateTime.now().millisecondsSinceEpoch;
       _latestSearchTimestamp = requestTime;
 
-      _isLoading = true;
-      notifyListeners();
+      final showSpinner = _allMatchedFoods.isEmpty;
+      if (showSpinner) {
+        _isLoading = true;
+        notifyListeners();
+      }
 
       try {
-        final localFuture = _foodRepository.searchLocalCatalog(trimmed);
-
-        final apiQuery = trimmed.isEmpty
-            ? 'chicken'
-            : _mapVietnameseToEnglish(trimmed);
-        final remoteFuture = _foodRepository.searchRemoteApi(
+        final apiQuery = _mapVietnameseToEnglish(trimmed);
+        final remoteResults = await _foodRepository.searchRemoteApi(
           apiQuery,
-          pageSize: _pageSize,
+          pageSize: 10,
           pageNumber: 1,
         );
 
-        final results = await Future.wait([localFuture, remoteFuture]);
-
         if (_latestSearchTimestamp == requestTime) {
-          _catalogFoods = results[0];
-          _apiFoods = results[1];
-
-          if (filteredFoods.isNotEmpty) {
+          _apiFoods = remoteResults.take(_maxApiCacheItems).toList();
+          if (_selectedFood == null && filteredFoods.isNotEmpty) {
             selectFood(filteredFoods.first);
           }
         }
@@ -235,7 +288,7 @@ class FoodSearchController extends ChangeNotifier {
 
   Future<bool> addCustomFood({
     required String name,
-    required String servingType, // 'serving' or 'g'
+    required String servingType,
     required double calories,
     required double protein,
     required double carbs,
@@ -253,7 +306,7 @@ class FoodSearchController extends ChangeNotifier {
       nameUnsigned: FoodRepository.removeAccents(cleanName.toLowerCase()),
       category: 'My Foods',
       servingType: servingType,
-      unitName: servingType == 'serving' ? 'serving' : '100 g',
+      unitName: servingType == 'serving' ? 'serving' : '100g',
       calories: calories,
       protein: protein,
       carbs: carbs,
@@ -262,7 +315,7 @@ class FoodSearchController extends ChangeNotifier {
 
     try {
       await _foodRepository.createCustomFood(uid: uid, food: newFood);
-      _customFoods.insert(0, newFood);
+      _customFoods = _foodRepository.cachedCustomFoods;
       _selectedCategory = 'My Foods';
       selectFood(newFood);
       return true;
@@ -277,7 +330,7 @@ class FoodSearchController extends ChangeNotifier {
 
     try {
       await _foodRepository.deleteCustomFood(uid: uid, foodId: foodId);
-      _customFoods.removeWhere((f) => f.id == foodId);
+      _customFoods = _foodRepository.cachedCustomFoods;
       if (_selectedFood?.id == foodId) {
         _selectedFood = filteredFoods.isNotEmpty ? filteredFoods.first : null;
       }
@@ -362,18 +415,30 @@ class FoodSearchController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Ghi nhận món ăn tức thì và bật hiệu ứng "Added ✓" trong 900ms
   Future<bool> logFood({required String mealType}) async {
     if (_selectedFood == null) return false;
     final String? uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || uid.isEmpty) return false;
 
     try {
-      await _foodRepository.logFoodToMeal(
+      _foodRepository.logFoodToMeal(
         uid: uid,
         mealType: mealType,
         food: _selectedFood!,
         amount: _selectedAmount,
       );
+
+      _addedCountInSession += 1;
+      _justAddedFeedback = true;
+      notifyListeners();
+
+      _feedbackTimer?.cancel();
+      _feedbackTimer = Timer(const Duration(milliseconds: 900), () {
+        _justAddedFeedback = false;
+        notifyListeners();
+      });
+
       return true;
     } catch (_) {
       return false;
