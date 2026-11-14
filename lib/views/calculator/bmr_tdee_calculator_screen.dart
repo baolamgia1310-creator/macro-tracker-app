@@ -12,7 +12,8 @@ class BmrTdeeCalculatorScreen extends StatefulWidget {
   });
 
   @override
-  State<BmrTdeeCalculatorScreen> createState() => _BmrTdeeCalculatorScreenState();
+  State<BmrTdeeCalculatorScreen> createState() =>
+      _BmrTdeeCalculatorScreenState();
 }
 
 class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
@@ -20,6 +21,9 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
   final TextEditingController _ageCtrl = TextEditingController(text: '25');
   final TextEditingController _weightCtrl = TextEditingController(text: '68');
   final TextEditingController _heightCtrl = TextEditingController(text: '172');
+
+  static const Color _lightModeLimeText = Color(0xFF365314);
+  static const Color _lightModeLimeBorder = Color(0xFF84CC16);
 
   @override
   void initState() {
@@ -54,6 +58,13 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
     }
   }
 
+  Color _resolveReadableBmiColor(Color rawColor, bool isDark) {
+    if (!isDark && rawColor == AppColors.lime) {
+      return _lightModeLimeText;
+    }
+    return rawColor;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -62,11 +73,21 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Nutrition Setup', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-            Text('Calibrate your baseline targets', style: TextStyle(fontSize: 12, color: AppColors.greySubtext)),
+            Text(
+              'Nutrition Setup',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: textColor,
+              ),
+            ),
+            const Text(
+              'Calibrate your baseline targets',
+              style: TextStyle(fontSize: 12, color: AppColors.greySubtext),
+            ),
           ],
         ),
       ),
@@ -74,7 +95,15 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
         child: ListenableBuilder(
           listenable: _controller,
           builder: (context, _) {
-            final bmiColor = _controller.bmiStatusColor;
+            final rawBmiColor = _controller.bmiStatusColor;
+            final readableBmiColor =
+                _resolveReadableBmiColor(rawBmiColor, isDark);
+            final badgeBgColor = (!isDark && rawBmiColor == AppColors.lime)
+                ? AppColors.lime.withOpacity(0.32)
+                : rawBmiColor.withOpacity(0.12);
+            final badgeBorderColor = (!isDark && rawBmiColor == AppColors.lime)
+                ? _lightModeLimeBorder
+                : rawBmiColor.withOpacity(0.4);
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20.0),
@@ -83,27 +112,56 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                 children: [
                   if (_controller.errorMessage != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 14,
+                      ),
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
                         color: Colors.redAccent.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                        border: Border.all(
+                          color: Colors.redAccent.withOpacity(0.3),
+                        ),
                       ),
                       child: Text(
                         _controller.errorMessage!,
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
 
                   // 1. Biological Sex
-                  Text('Biological Sex', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                  Text(
+                    'Biological Sex',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      _buildGenderCard('Male', Icons.male, Gender.male, cardColor, textColor),
+                      _buildGenderCard(
+                        'Male',
+                        Icons.male,
+                        Gender.male,
+                        cardColor,
+                        textColor,
+                        isDark,
+                      ),
                       const SizedBox(width: 12),
-                      _buildGenderCard('Female', Icons.female, Gender.female, cardColor, textColor),
+                      _buildGenderCard(
+                        'Female',
+                        Icons.female,
+                        Gender.female,
+                        cardColor,
+                        textColor,
+                        isDark,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -112,75 +170,152 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Biometric Stats', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                      Text(
+                        'Biometric Stats',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                        ),
+                      ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: bmiColor.withOpacity(0.12),
+                          color: badgeBgColor,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: bmiColor.withOpacity(0.4)),
+                          border: Border.all(color: badgeBorderColor),
                         ),
                         child: Text(
                           'BMI: ${_controller.bmi.toStringAsFixed(1)} • ${_controller.bmiCategoryLabel}',
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: bmiColor,
+                            fontWeight: FontWeight.w800,
+                            color: readableBmiColor,
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _buildInputField('Age', 'years', _ageCtrl, Icons.cake_outlined, cardColor, textColor),
+                  _buildInputField(
+                    'Age',
+                    'years',
+                    _ageCtrl,
+                    Icons.cake_outlined,
+                    cardColor,
+                    textColor,
+                    isDark,
+                  ),
                   const SizedBox(height: 10),
-                  _buildInputField('Weight', 'kg', _weightCtrl, Icons.scale_outlined, cardColor, textColor),
+                  _buildInputField(
+                    'Weight',
+                    'kg',
+                    _weightCtrl,
+                    Icons.scale_outlined,
+                    cardColor,
+                    textColor,
+                    isDark,
+                  ),
                   const SizedBox(height: 10),
-                  _buildInputField('Height', 'cm', _heightCtrl, Icons.height_outlined, cardColor, textColor),
+                  _buildInputField(
+                    'Height',
+                    'cm',
+                    _heightCtrl,
+                    Icons.height_outlined,
+                    cardColor,
+                    textColor,
+                    isDark,
+                  ),
                   const SizedBox(height: 20),
 
                   // 3. Activity Level
-                  Text('Activity Level', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                  Text(
+                    'Activity Level',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: cardColor,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.06)
+                            : Colors.black.withOpacity(0.06),
+                      ),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<ActivityLevel>(
                         isExpanded: true,
                         value: _controller.activityLevel,
                         dropdownColor: cardColor,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
                         items: const [
-                          DropdownMenuItem(value: ActivityLevel.sedentary, child: Text('Sedentary (Little to no exercise)')),
-                          DropdownMenuItem(value: ActivityLevel.lightlyActive, child: Text('Lightly Active (1-3 days/week)')),
-                          DropdownMenuItem(value: ActivityLevel.moderatelyActive, child: Text('Moderately Active (3-5 days/week)')),
-                          DropdownMenuItem(value: ActivityLevel.veryActive, child: Text('Very Active (6-7 days hard workouts)')),
+                          DropdownMenuItem(
+                            value: ActivityLevel.sedentary,
+                            child: Text('Sedentary (Office job, little exercise)'),
+                          ),
+                          DropdownMenuItem(
+                            value: ActivityLevel.lightlyActive,
+                            child: Text('Lightly Active (1-3 workouts/week)'),
+                          ),
+                          DropdownMenuItem(
+                            value: ActivityLevel.moderatelyActive,
+                            child: Text('Moderately Active (3-5 workouts/week)'),
+                          ),
+                          DropdownMenuItem(
+                            value: ActivityLevel.veryActive,
+                            child: Text('Very Active (6-7 intense workouts/week)'),
+                          ),
                         ],
-                        onChanged: (val) => val != null ? _controller.setActivityLevel(val) : null,
+                        onChanged: (val) =>
+                            val != null ? _controller.setActivityLevel(val) : null,
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
 
-                  // 4. Goal Selection kèm chỉ dẫn lâm sàng
-                  Text('Primary Goal', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor)),
+                  // 4. Primary Goal kèm chỉ dẫn lâm sàng
+                  Text(
+                    'Primary Goal',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-
                   Container(
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: bmiColor.withOpacity(0.08),
+                      color: badgeBgColor,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: bmiColor.withOpacity(0.25)),
+                      border: Border.all(color: badgeBorderColor),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.lightbulb_outline, color: bmiColor, size: 18),
+                        Icon(
+                          Icons.lightbulb_outline,
+                          color: readableBmiColor,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -188,8 +323,8 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               height: 1.35,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? AppColors.darkText : AppColors.lightText,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
                             ),
                           ),
                         ),
@@ -197,17 +332,44 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                     ),
                   ),
 
-                  // 3 Thẻ mục tiêu phẳng hàng 138px
                   Row(
                     children: [
-                      _buildGoalCard(GoalType.weightLoss, 'Weight\nLoss', 'Deficit', Icons.trending_down, cardColor, textColor, isDark),
+                      _buildGoalCard(
+                        GoalType.weightLoss,
+                        'Weight\nLoss',
+                        '-20% Deficit',
+                        Icons.trending_down,
+                        cardColor,
+                        textColor,
+                        isDark,
+                      ),
                       const SizedBox(width: 10),
-                      _buildGoalCard(GoalType.maintenance, 'Maintain\nWeight', 'Maintain', Icons.horizontal_rule, cardColor, textColor, isDark),
+                      _buildGoalCard(
+                        GoalType.maintenance,
+                        'Maintain\nWeight',
+                        'Recomp',
+                        Icons.horizontal_rule,
+                        cardColor,
+                        textColor,
+                        isDark,
+                      ),
                       const SizedBox(width: 10),
-                      _buildGoalCard(GoalType.muscleGain, 'Muscle\nGain', 'Surplus', Icons.trending_up, cardColor, textColor, isDark),
+                      _buildGoalCard(
+                        GoalType.muscleGain,
+                        'Muscle\nGain',
+                        'Lean Bulk',
+                        Icons.trending_up,
+                        cardColor,
+                        textColor,
+                        isDark,
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
+
+                  // 5. Thẻ Xem trước Kế hoạch Dinh dưỡng (Live Preview Card)
+                  _buildLivePlanPreviewCard(cardColor, textColor, isDark),
+                  const SizedBox(height: 24),
 
                   ElevatedButton(
                     onPressed: _controller.isLoading ? null : _handleSubmit,
@@ -215,18 +377,26 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                       backgroundColor: AppColors.lime,
                       foregroundColor: Colors.black,
                       minimumSize: const Size.fromHeight(54),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 0,
                     ),
                     child: _controller.isLoading
                         ? const SizedBox(
                             height: 22,
                             width: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.black,
+                            ),
                           )
                         : const Text(
                             'Calculate & Start Tracking',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
                           ),
                   ),
                 ],
@@ -238,27 +408,180 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
     );
   }
 
-  Widget _buildGenderCard(String label, IconData icon, Gender gender, Color cardColor, Color textColor) {
+  Widget _buildLivePlanPreviewCard(
+    Color cardColor,
+    Color textColor,
+    bool isDark,
+  ) {
+    final accentColor = isDark ? AppColors.lime : _lightModeLimeText;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.08)
+              : Colors.black.withOpacity(0.06),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Estimated Daily Target',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                '${_controller.previewTargetCalories} kcal',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'BMR: ${_controller.previewBmr} kcal  •  Maintenance (TDEE): ${_controller.previewTdee} kcal',
+            style: const TextStyle(fontSize: 11.5, color: AppColors.greySubtext),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildMacroPreviewPill(
+                'Protein',
+                '${_controller.previewProteinGrams}g',
+                AppColors.protein,
+                textColor,
+                isDark,
+              ),
+              const SizedBox(width: 8),
+              _buildMacroPreviewPill(
+                'Carbs',
+                '${_controller.previewCarbsGrams}g',
+                AppColors.carbs,
+                textColor,
+                isDark,
+              ),
+              const SizedBox(width: 8),
+              _buildMacroPreviewPill(
+                'Fat',
+                '${_controller.previewFatGrams}g',
+                AppColors.fat,
+                textColor,
+                isDark,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacroPreviewPill(
+    String label,
+    String value,
+    Color color,
+    Color textColor,
+    bool isDark,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(isDark ? 0.14 : 0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.greySubtext,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenderCard(
+    String label,
+    IconData icon,
+    Gender gender,
+    Color cardColor,
+    Color textColor,
+    bool isDark,
+  ) {
     final isSelected = _controller.gender == gender;
+    final activeBorderColor = isDark ? AppColors.lime : _lightModeLimeBorder;
+
     return Expanded(
       child: GestureDetector(
         onTap: () => _controller.setGender(gender),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? AppColors.lime : Colors.transparent,
-              width: 2,
+              color: isSelected
+                  ? activeBorderColor
+                  : (isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : Colors.black.withOpacity(0.06)),
+              width: isSelected ? 2 : 1,
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: isSelected ? AppColors.lime : AppColors.greySubtext),
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.lime
+                      : (isDark
+                          ? Colors.white.withOpacity(0.05)
+                          : Colors.black.withOpacity(0.04)),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: isSelected ? Colors.black : AppColors.greySubtext,
+                ),
+              ),
               const SizedBox(width: 8),
-              Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: textColor)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
             ],
           ),
         ),
@@ -266,29 +589,54 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
     );
   }
 
-  Widget _buildInputField(String label, String unit, TextEditingController ctrl, IconData icon, Color cardColor, Color textColor) {
+  Widget _buildInputField(
+    String label,
+    String unit,
+    TextEditingController ctrl,
+    IconData icon,
+    Color cardColor,
+    Color textColor,
+    bool isDark,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.06)
+              : Colors.black.withOpacity(0.06),
+        ),
       ),
       child: Row(
         children: [
           Icon(icon, size: 20, color: AppColors.greySubtext),
           const SizedBox(width: 12),
-          Text(label, style: TextStyle(fontWeight: FontWeight.w600, color: textColor)),
+          Text(
+            label,
+            style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
+          ),
           const Spacer(),
           SizedBox(
-            width: 70,
+            width: 80,
             child: TextField(
               controller: ctrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.lime, fontSize: 16),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: isDark ? AppColors.lime : textColor,
+                fontSize: 16,
+              ),
               decoration: InputDecoration(
                 suffixText: ' $unit',
-                suffixStyle: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
+                suffixStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.greySubtext,
+                ),
                 border: InputBorder.none,
               ),
             ),
@@ -298,8 +646,18 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
     );
   }
 
-  Widget _buildGoalCard(GoalType goal, String title, String subtitle, IconData icon, Color cardColor, Color textColor, bool isDark) {
+  Widget _buildGoalCard(
+    GoalType goal,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color cardColor,
+    Color textColor,
+    bool isDark,
+  ) {
     final isSelected = _controller.selectedGoal == goal;
+    final activeBorderColor = isDark ? AppColors.lime : _lightModeLimeBorder;
+
     return Expanded(
       child: GestureDetector(
         onTap: () => _controller.setGoal(goal),
@@ -311,13 +669,17 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
             color: cardColor,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? AppColors.lime : Colors.transparent,
-              width: 2,
+              color: isSelected
+                  ? activeBorderColor
+                  : (isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : Colors.black.withOpacity(0.06)),
+              width: isSelected ? 2 : 1,
             ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: AppColors.lime.withOpacity(0.12),
+                      color: AppColors.lime.withOpacity(isDark ? 0.12 : 0.2),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -331,11 +693,17 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.lime.withOpacity(0.15)
-                      : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03)),
+                      ? AppColors.lime
+                      : (isDark
+                          ? Colors.white.withOpacity(0.05)
+                          : Colors.black.withOpacity(0.04)),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: isSelected ? AppColors.lime : AppColors.greySubtext, size: 24),
+                child: Icon(
+                  icon,
+                  color: isSelected ? Colors.black : AppColors.greySubtext,
+                  size: 22,
+                ),
               ),
               SizedBox(
                 height: 32,
@@ -346,7 +714,8 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                     maxLines: 2,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      fontWeight:
+                          isSelected ? FontWeight.w800 : FontWeight.w600,
                       color: textColor,
                       height: 1.2,
                     ),
@@ -357,9 +726,11 @@ class _BmrTdeeCalculatorScreenState extends State<BmrTdeeCalculatorScreen> {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? (isDark ? AppColors.lime : Colors.black) : AppColors.greySubtext,
+                  fontSize: 10.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                  color: isSelected
+                      ? (isDark ? AppColors.lime : _lightModeLimeText)
+                      : AppColors.greySubtext,
                 ),
               ),
             ],

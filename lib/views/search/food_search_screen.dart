@@ -22,6 +22,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   final TextEditingController _searchTextController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  static const Color _addedEmerald = Color(0xFF10B981);
+
   @override
   void initState() {
     super.initState();
@@ -48,7 +50,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     super.dispose();
   }
 
-  // Bảng chọn bữa ăn khi người dùng bấm Add Food trực tiếp từ tab Food dưới Bottom Bar
   void _showMealPickerSheet(BuildContext context, bool isDark) {
     final cardColor = Theme.of(context).colorScheme.surface;
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
@@ -172,7 +173,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: AppColors.greySubtext),
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.greySubtext,
+                          ),
                           onPressed: () => Navigator.of(ctx).pop(),
                         ),
                       ],
@@ -200,13 +204,16 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                       children: [
                         Expanded(
                           child: GestureDetector(
-                            onTap: () => setModalState(() => selectedType = 'serving'),
+                            onTap: () =>
+                                setModalState(() => selectedType = 'serving'),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
                                 color: selectedType == 'serving'
                                     ? AppColors.lime
-                                    : (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04)),
+                                    : (isDark
+                                        ? Colors.white.withOpacity(0.06)
+                                        : Colors.black.withOpacity(0.04)),
                                 borderRadius: BorderRadius.circular(14),
                               ),
                               alignment: Alignment.center,
@@ -215,7 +222,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
-                                  color: selectedType == 'serving' ? Colors.black : textColor,
+                                  color: selectedType == 'serving'
+                                      ? Colors.black
+                                      : textColor,
                                 ),
                               ),
                             ),
@@ -224,13 +233,16 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: GestureDetector(
-                            onTap: () => setModalState(() => selectedType = 'g'),
+                            onTap: () =>
+                                setModalState(() => selectedType = 'g'),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
                                 color: selectedType == 'g'
                                     ? AppColors.lime
-                                    : (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04)),
+                                    : (isDark
+                                        ? Colors.white.withOpacity(0.06)
+                                        : Colors.black.withOpacity(0.04)),
                                 borderRadius: BorderRadius.circular(14),
                               ),
                               alignment: Alignment.center,
@@ -239,7 +251,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
-                                  color: selectedType == 'g' ? Colors.black : textColor,
+                                  color: selectedType == 'g'
+                                      ? Colors.black
+                                      : textColor,
                                 ),
                               ),
                             ),
@@ -292,10 +306,14 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                           ? null
                           : () async {
                               final name = nameCtrl.text.trim();
-                              final cal = double.tryParse(calCtrl.text.trim()) ?? 0.0;
-                              final pro = double.tryParse(proCtrl.text.trim()) ?? 0.0;
-                              final carb = double.tryParse(carbCtrl.text.trim()) ?? 0.0;
-                              final fat = double.tryParse(fatCtrl.text.trim()) ?? 0.0;
+                              final cal =
+                                  double.tryParse(calCtrl.text.trim()) ?? 0.0;
+                              final pro =
+                                  double.tryParse(proCtrl.text.trim()) ?? 0.0;
+                              final carb =
+                                  double.tryParse(carbCtrl.text.trim()) ?? 0.0;
+                              final fat =
+                                  double.tryParse(fatCtrl.text.trim()) ?? 0.0;
 
                               if (name.isEmpty || cal <= 0) return;
 
@@ -360,7 +378,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+        color: isDark
+            ? Colors.white.withOpacity(0.06)
+            : Colors.black.withOpacity(0.04),
         borderRadius: BorderRadius.circular(14),
       ),
       child: TextField(
@@ -368,11 +388,20 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
         keyboardType: isNumber
             ? const TextInputType.numberWithOptions(decimal: true)
             : TextInputType.text,
-        style: TextStyle(fontSize: 14, color: textColor, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontSize: 14,
+          color: textColor,
+          fontWeight: FontWeight.w600,
+        ),
         decoration: InputDecoration(
-          icon: icon != null ? Icon(icon, size: 18, color: AppColors.lime) : null,
+          icon: icon != null
+              ? Icon(icon, size: 18, color: AppColors.lime)
+              : null,
           labelText: label,
-          labelStyle: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
+          labelStyle: const TextStyle(
+            fontSize: 12,
+            color: AppColors.greySubtext,
+          ),
           border: InputBorder.none,
         ),
       ),
@@ -387,58 +416,97 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
     final canPop = Navigator.of(context).canPop();
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: false,
-        leading: canPop
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).maybePop(),
-              )
-            : null,
-        title: Container(
-          height: 42,
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: TextField(
-            controller: _searchTextController,
-            onChanged: (val) {
-              if (_scrollController.hasClients) {
-                _scrollController.jumpTo(0);
-              }
-              _controller.setSearchQuery(val);
-            },
-            style: TextStyle(fontSize: 14, color: textColor),
-            decoration: const InputDecoration(
-              hintText: 'Search foods, chicken, rice...',
-              hintStyle: TextStyle(color: AppColors.greySubtext, fontSize: 13),
-              prefixIcon: Icon(Icons.search, size: 20, color: AppColors.greySubtext),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(vertical: 9),
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Create Custom Food',
-            icon: const Icon(Icons.add_circle_outline, color: AppColors.lime, size: 26),
-            onPressed: () => _showCreateCustomFoodSheet(context, isDark),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) {
-          final items = _controller.filteredFoods;
-          final showBottomLoader = _controller.isLoadingMore || _controller.hasMore;
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) {
+        final items = _controller.filteredFoods;
+        final showBottomLoader =
+            _controller.isLoadingMore || _controller.hasMore;
+        final addedCount = _controller.addedCountInSession;
 
-          return Column(
+        return Scaffold(
+          appBar: AppBar(
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            automaticallyImplyLeading: false,
+            leading: canPop
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  )
+                : null,
+            title: Container(
+              height: 42,
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: TextField(
+                controller: _searchTextController,
+                onChanged: (val) {
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(0);
+                  }
+                  _controller.setSearchQuery(val);
+                },
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: const InputDecoration(
+                  hintText: 'Search foods, chicken, rice...',
+                  hintStyle: TextStyle(
+                    color: AppColors.greySubtext,
+                    fontSize: 13,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    size: 20,
+                    color: AppColors.greySubtext,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 9),
+                ),
+              ),
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Create Custom Food',
+                icon: Icon(
+                  Icons.add_circle_outline,
+                  color: isDark ? AppColors.lime : Colors.black87,
+                  size: 24,
+                ),
+                onPressed: () => _showCreateCustomFoodSheet(context, isDark),
+              ),
+              if (canPop && addedCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.lime,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'Done ($addedCount)',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 6),
+            ],
+          ),
+          body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildCategoryBar(context: context, isDark: isDark),
@@ -465,8 +533,14 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                                 ),
                                 const SizedBox(height: 12),
                                 TextButton.icon(
-                                  onPressed: () => _showCreateCustomFoodSheet(context, isDark),
-                                  icon: const Icon(Icons.add, color: AppColors.lime),
+                                  onPressed: () => _showCreateCustomFoodSheet(
+                                    context,
+                                    isDark,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.add,
+                                    color: AppColors.lime,
+                                  ),
                                   label: const Text(
                                     'Create Custom Food',
                                     style: TextStyle(
@@ -480,12 +554,17 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                           )
                         : ListView.builder(
                             controller: _scrollController,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                            itemCount: items.length + (showBottomLoader ? 1 : 0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 6,
+                            ),
+                            itemCount:
+                                items.length + (showBottomLoader ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (index == items.length) {
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                   child: Center(
                                     child: _controller.isLoadingMore
                                         ? const SizedBox(
@@ -502,7 +581,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                               }
 
                               final food = items[index];
-                              final isCurrentFood = _controller.selectedFood?.id == food.id;
+                              final isCurrentFood =
+                                  _controller.selectedFood?.id == food.id;
 
                               return _buildFoodItemCard(
                                 context: context,
@@ -522,9 +602,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -551,7 +631,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
               behavior: HitTestBehavior.opaque,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppColors.lime
@@ -593,7 +676,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final unitSubtext = food.servingType == 'serving' ? '1 serving' : '100g';
-    final isCustomFood = food.id.startsWith('custom_') || food.category == 'My Foods';
+    final isCustomFood =
+        food.id.startsWith('custom_') || food.category == 'My Foods';
 
     return GestureDetector(
       onTap: onTap,
@@ -618,13 +702,15 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? AppColors.lime.withOpacity(0.18)
-                    : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04)),
+                    : (isDark
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.black.withOpacity(0.04)),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.restaurant_outlined,
                 size: 22,
-                color: AppColors.lime,
+                color: isDark ? AppColors.lime : const Color(0xFF3F6212),
               ),
             ),
             const SizedBox(width: 14),
@@ -654,14 +740,20 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                       const SizedBox(width: 4),
                       Text(
                         '/$unitSubtext',
-                        style: const TextStyle(fontSize: 11, color: AppColors.greySubtext),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.greySubtext,
+                        ),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           '• P ${food.protein}g  C ${food.carbs}g  F ${food.fat}g',
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11, color: AppColors.greySubtext),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.greySubtext,
+                          ),
                         ),
                       ),
                     ],
@@ -672,7 +764,11 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             if (isCustomFood)
               IconButton(
                 tooltip: 'Delete custom food',
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                  size: 20,
+                ),
                 onPressed: () => _controller.removeCustomFood(food.id),
               ),
           ],
@@ -689,6 +785,15 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   }) {
     final foodName = _controller.selectedFood?.name ?? 'Select a food item';
     final caloValue = _controller.calculatedCalories.round();
+    final isJustAdded = _controller.justAddedFeedback;
+
+    final String defaultBtnLabel =
+        widget.mealType != null ? 'Add to ${widget.mealType}' : 'Add Food';
+    final String activeBtnLabel = isJustAdded
+        ? (widget.mealType != null
+            ? 'Added to ${widget.mealType} ✓'
+            : 'Added ✓')
+        : defaultBtnLabel;
 
     return Container(
       width: double.infinity,
@@ -720,7 +825,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             const SizedBox(height: 2),
             Text(
               'Selected: $foodName • $caloValue kcal',
-              style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.greySubtext,
+              ),
             ),
             const SizedBox(height: 18),
             Row(
@@ -745,7 +853,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                     ),
                     Text(
                       _controller.unitLabel,
-                      style: const TextStyle(fontSize: 12, color: AppColors.greySubtext),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.greySubtext,
+                      ),
                     ),
                   ],
                 ),
@@ -768,20 +879,16 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                     _controller.selectedFood!,
                     _controller.selectedAmount,
                   );
-                  Navigator.of(context).maybePop();
                 } else if (widget.mealType != null) {
-                  final success = await _controller.logFood(mealType: widget.mealType!);
-                  if (success && mounted) {
-                    Navigator.of(context).maybePop();
-                  }
+                  // Giữ lại màn hình để thêm liên tiếp nhiều món cho bữa ăn
+                  await _controller.logFood(mealType: widget.mealType!);
                 } else {
-                  // Mở từ tab Food dưới thanh Navigation Bar -> Hiện bảng chọn bữa ăn
                   _showMealPickerSheet(context, isDark);
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.lime,
-                foregroundColor: Colors.black,
+                backgroundColor: isJustAdded ? _addedEmerald : AppColors.lime,
+                foregroundColor: isJustAdded ? Colors.white : Colors.black,
                 minimumSize: const Size.fromHeight(54),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -789,7 +896,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 ),
               ),
               child: Text(
-                widget.mealType != null ? 'Add to ${widget.mealType}' : 'Add Food',
+                activeBtnLabel,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -816,13 +923,17 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
         decoration: BoxDecoration(
           color: isPrimary
               ? AppColors.lime
-              : (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06)),
+              : (isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.black.withOpacity(0.06)),
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
           size: 20,
-          color: isPrimary ? Colors.black : (isDark ? Colors.white : Colors.black87),
+          color: isPrimary
+              ? Colors.black
+              : (isDark ? Colors.white : Colors.black87),
         ),
       ),
     );

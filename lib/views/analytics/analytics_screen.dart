@@ -19,6 +19,80 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     super.dispose();
   }
 
+  void _showLogWeightDialog(
+    BuildContext context,
+    Color cardColor,
+    Color textColor,
+  ) {
+    final weightCtrl = TextEditingController(
+      text: '${_controller.currentWeight}',
+    );
+
+    void submitWeight(BuildContext dialogContext) {
+      final rawText = weightCtrl.text.trim().replaceAll(',', '.');
+      final val = double.tryParse(rawText);
+      Navigator.of(dialogContext).pop();
+      if (val != null && val >= 20 && val <= 300) {
+        _controller.logWeight(val);
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: cardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Log Today\'s Weight',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 17,
+              color: textColor,
+            ),
+          ),
+          content: TextField(
+            controller: weightCtrl,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onSubmitted: (_) => submitWeight(ctx),
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.bold,
+            ),
+            decoration: const InputDecoration(
+              suffixText: 'kg',
+              hintText: 'e.g. 82.0',
+              hintStyle: TextStyle(color: AppColors.greySubtext),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.greySubtext),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => submitWeight(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.lime,
+                foregroundColor: Colors.black,
+              ),
+              child: const Text(
+                'Save',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -64,7 +138,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _controller.selectedRange,
-                    icon: Icon(Icons.keyboard_arrow_down, size: 18, color: subtextColor),
+                    icon: Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: subtextColor,
+                    ),
                     dropdownColor: cardColor,
                     style: TextStyle(
                       fontSize: 13,
@@ -72,7 +150,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       color: textColor,
                     ),
                     items: _controller.timeRanges.map((range) {
-                      return DropdownMenuItem(value: range, child: Text(range));
+                      return DropdownMenuItem(
+                        value: range,
+                        child: Text(range),
+                      );
                     }).toList(),
                     onChanged: (val) {
                       if (val != null) _controller.setRange(val);
@@ -113,12 +194,29 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               color: textColor,
                             ),
                           ),
-                          Text(
-                            '${_controller.currentWeight} kg',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? AppColors.lime : AppColors.lightText,
+                          GestureDetector(
+                            onTap: () => _showLogWeightDialog(
+                              context,
+                              cardColor,
+                              textColor,
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '${_controller.currentWeight} kg',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark ? AppColors.lime : AppColors.lightText,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.edit_outlined,
+                                  size: 15,
+                                  color: isDark ? AppColors.lime : AppColors.lightText,
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -155,11 +253,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           color: textColor,
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 32),
                       SizedBox(
-                        height: 140,
+                        height: 150,
                         child: BarChart(
-                          _buildMacroBarChartData(isDark, subtextColor),
+                          _buildMacroBarChartData(isDark, textColor, subtextColor),
                           duration: const Duration(milliseconds: 350),
                         ),
                       ),
@@ -209,11 +307,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   LineChartData _buildWeightChartData(bool isDark, Color subtextColor) {
-    final spots = _controller.weeklyWeights.asMap().entries.map((e) {
+    final weights = _controller.weeklyWeights;
+    final spots = weights.asMap().entries.map((e) {
       return FlSpot(e.key.toDouble(), e.value.weight);
     }).toList();
 
+    double minW = 60.0;
+    double maxW = 75.0;
+    if (weights.isNotEmpty) {
+      minW = weights.map((e) => e.weight).reduce((a, b) => a < b ? a : b);
+      maxW = weights.map((e) => e.weight).reduce((a, b) => a > b ? a : b);
+    }
+
+    // Tạo khoảng đệm trên và dưới để đường thẳng không bị dính sát đáy
+    final double chartMinY = (minW - 2.0).clamp(0.0, 500.0);
+    final double chartMaxY = maxW + 2.0;
+
     return LineChartData(
+      minX: 0,
+      maxX: (weights.length > 1 ? weights.length - 1 : 6).toDouble(),
+      minY: chartMinY,
+      maxY: chartMaxY,
       gridData: const FlGridData(show: false),
       borderData: FlBorderData(show: false),
       titlesData: FlTitlesData(
@@ -223,16 +337,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         bottomTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 26,
+            interval: 1, // Khóa bước nhảy = 1 để không bị lặp thứ (Sun Sun Mon Mon)
+            reservedSize: 28,
             getTitlesWidget: (value, meta) {
+              if (value != value.roundToDouble()) {
+                return const SizedBox.shrink();
+              }
               final index = value.toInt();
-              if (index < 0 || index >= _controller.weeklyWeights.length) {
+              if (index < 0 || index >= weights.length) {
                 return const SizedBox.shrink();
               }
               return Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
-                  _controller.weeklyWeights[index].day,
+                  weights[index].day,
                   style: TextStyle(
                     fontSize: 11,
                     color: subtextColor,
@@ -246,12 +364,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       ),
       lineTouchData: LineTouchData(
         touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (_) => isDark ? const Color(0xFF2C3540) : Colors.black87,
           getTooltipItems: (touchedSpots) {
             return touchedSpots.map((spot) {
               return LineTooltipItem(
-                '${spot.y} kg',
-                TextStyle(
-                  color: isDark ? AppColors.darkText : Colors.white,
+                '${spot.y.toStringAsFixed(1)} kg',
+                const TextStyle(
+                  color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -295,16 +414,38 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  BarChartData _buildMacroBarChartData(bool isDark, Color subtextColor) {
+  BarChartData _buildMacroBarChartData(
+    bool isDark,
+    Color textColor,
+    Color subtextColor,
+  ) {
     final barBgColor = isDark
         ? Colors.white.withOpacity(0.04)
         : Colors.black.withOpacity(0.04);
 
     return BarChartData(
       alignment: BarChartAlignment.spaceAround,
-      maxY: 100,
+      maxY: 120, // Tăng trần lên 120 để nhãn % trên đỉnh cột luôn thoáng
       gridData: const FlGridData(show: false),
       borderData: FlBorderData(show: false),
+      barTouchData: BarTouchData(
+        enabled: false,
+        touchTooltipData: BarTouchTooltipData(
+          getTooltipColor: (_) => Colors.transparent,
+          tooltipPadding: EdgeInsets.zero,
+          tooltipMargin: 6,
+          getTooltipItem: (group, groupIndex, rod, rodIndex) {
+            return BarTooltipItem(
+              '${rod.toY.round()}%',
+              TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            );
+          },
+        ),
+      ),
       titlesData: FlTitlesData(
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -315,11 +456,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             reservedSize: 28,
             getTitlesWidget: (value, meta) {
               final titles = ['Protein', 'Carbs', 'Fat'];
-              if (value.toInt() >= 0 && value.toInt() < titles.length) {
+              final index = value.toInt();
+              if (index >= 0 && index < titles.length) {
                 return Padding(
                   padding: const EdgeInsets.only(top: 8.0),
                   child: Text(
-                    titles[value.toInt()],
+                    titles[index],
                     style: TextStyle(
                       fontSize: 12,
                       color: subtextColor,
@@ -334,14 +476,34 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ),
       ),
       barGroups: [
-        _buildBarGroup(0, (_controller.proteinAdherence * 100), AppColors.protein, barBgColor),
-        _buildBarGroup(1, (_controller.carbsAdherence * 100), AppColors.carbs, barBgColor),
-        _buildBarGroup(2, (_controller.fatAdherence * 100), AppColors.fat, barBgColor),
+        _buildBarGroup(
+          0,
+          (_controller.proteinAdherence * 100).roundToDouble(),
+          AppColors.protein,
+          barBgColor,
+        ),
+        _buildBarGroup(
+          1,
+          (_controller.carbsAdherence * 100).roundToDouble(),
+          AppColors.carbs,
+          barBgColor,
+        ),
+        _buildBarGroup(
+          2,
+          (_controller.fatAdherence * 100).roundToDouble(),
+          AppColors.fat,
+          barBgColor,
+        ),
       ],
     );
   }
 
-  BarChartGroupData _buildBarGroup(int x, double value, Color barColor, Color backColor) {
+  BarChartGroupData _buildBarGroup(
+    int x,
+    double value,
+    Color barColor,
+    Color backColor,
+  ) {
     return BarChartGroupData(
       x: x,
       showingTooltipIndicators: [0],
