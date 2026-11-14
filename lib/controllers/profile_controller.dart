@@ -74,12 +74,12 @@ class ProfileController extends ChangeNotifier {
     }
 
     _email = user.email ?? '';
-    final fallbackName = _email.contains('@')
-        ? _email.split('@').first
-        : 'Macro User';
-    _displayName = (user.displayName != null && user.displayName!.trim().isNotEmpty)
-        ? user.displayName!.trim()
-        : fallbackName;
+    final fallbackName =
+        _email.contains('@') ? _email.split('@').first : 'Macro User';
+    _displayName =
+        (user.displayName != null && user.displayName!.trim().isNotEmpty)
+            ? user.displayName!.trim()
+            : fallbackName;
 
     _userDocSub = _firestore
         .collection('users')
@@ -102,30 +102,33 @@ class ProfileController extends ChangeNotifier {
         final targets = data['targetMacros'] as JsonMap? ?? data;
         _targetCalories =
             _toDouble(targets['targetCalories'] ?? data['tdee'], 2000).round();
-        _proteinGrams =
-            _toDouble(targets['targetProteinGrams'], (_targetCalories * 0.3) / 4);
-        _carbsGrams =
-            _toDouble(targets['targetCarbsGrams'], (_targetCalories * 0.4) / 4);
-        _fatGrams =
-            _toDouble(targets['targetFatGrams'], (_targetCalories * 0.3) / 9);
+        _proteinGrams = _toDouble(
+          targets['targetProteinGrams'],
+          (_targetCalories * 0.3) / 4,
+        );
+        _carbsGrams = _toDouble(
+          targets['targetCarbsGrams'],
+          (_targetCalories * 0.4) / 4,
+        );
+        _fatGrams = _toDouble(
+          targets['targetFatGrams'],
+          (_targetCalories * 0.3) / 9,
+        );
 
-        // Tính phần trăm từ số gram hoặc đọc trực tiếp nếu đã lưu
-        if (targets['proteinPercent'] != null &&
+        final totalCalFromMacros =
+            (_proteinGrams * 4) + (_carbsGrams * 4) + (_fatGrams * 9);
+        if (totalCalFromMacros > 0) {
+          _proteinPercent =
+              (((_proteinGrams * 4) / totalCalFromMacros) * 100).round();
+          _carbsPercent =
+              (((_carbsGrams * 4) / totalCalFromMacros) * 100).round();
+          _fatPercent = (100 - _proteinPercent - _carbsPercent).clamp(5, 85);
+        } else if (targets['proteinPercent'] != null &&
             targets['carbsPercent'] != null &&
             targets['fatPercent'] != null) {
           _proteinPercent = _toDouble(targets['proteinPercent'], 30).round();
           _carbsPercent = _toDouble(targets['carbsPercent'], 40).round();
           _fatPercent = _toDouble(targets['fatPercent'], 30).round();
-        } else {
-          final totalCalFromMacros =
-              (_proteinGrams * 4) + (_carbsGrams * 4) + (_fatGrams * 9);
-          if (totalCalFromMacros > 0) {
-            _proteinPercent =
-                (((_proteinGrams * 4) / totalCalFromMacros) * 100).round();
-            _carbsPercent =
-                (((_carbsGrams * 4) / totalCalFromMacros) * 100).round();
-            _fatPercent = (100 - _proteinPercent - _carbsPercent).clamp(5, 80);
-          }
         }
       }
       _isLoading = false;
@@ -136,47 +139,90 @@ class ProfileController extends ChangeNotifier {
     });
   }
 
-  // Cập nhật tỷ lệ % Macro và tự động tính lại số Gram mục tiêu trên Firestore
-  Future<bool> updateTargetMacros({
+  // Lưu chính xác cả số Gram lẫn tỷ lệ % cho cả 2 chế độ Smart Balance & Free Grams
+  Future<bool> saveMacroTargets({
     required int targetCalories,
-    required int proteinPct,
-    required int carbsPct,
-    required int fatPct,
+    required double proteinGrams,
+    required double carbsGrams,
+    required double fatGrams,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) return false;
-    if (proteinPct + carbsPct + fatPct != 100) return false;
 
-    final newProteinGrams =
-        double.parse(((targetCalories * (proteinPct / 100.0)) / 4.0).toStringAsFixed(1));
-    final newCarbsGrams =
-        double.parse(((targetCalories * (carbsPct / 100.0)) / 4.0).toStringAsFixed(1));
-    final newFatGrams =
-        double.parse(((targetCalories * (fatPct / 100.0)) / 9.0).toStringAsFixed(1));
+    final cleanCal = targetCalories.clamp(800, 10000);
+    final cleanP = double.parse(proteinGrams.clamp(10.0, 600.0).toStringAsFixed(1));
+    final cleanC = double.parse(carbsGrams.clamp(0.0, 1200.0).toStringAsFixed(1));
+    final cleanF = double.parse(fatGrams.clamp(10.0, 400.0).toStringAsFixed(1));
+
+    final totalMacroCal = (cleanP * 4.0) + (cleanC * 4.0) + (cleanF * 9.0);
+    final int pPct = totalMacroCal > 0
+        ? (((cleanP * 4.0) / totalMacroCal) * 100).round()
+        : 30;
+    final int cPct = totalMacroCal > 0
+        ? (((cleanC * 4.0) / totalMacroCal) * 100).round()
+        : 45;
+    final int fPct = (100 - pPct - cPct).clamp(5, 85);
+
+    // Cập nhật ngay trên RAM (Optimistic UI 0ms)
+    _targetCalories = cleanCal;
+    _proteinGrams = cleanP;
+    _carbsGrams = cleanC;
+    _fatGrams = cleanF;
+    _proteinPercent = pPct;
+    _carbsPercent = cPct;
+    _fatPercent = fPct;
+    notifyListeners();
 
     try {
-      await _firestore.collection('users').doc(uid).set({
+      final JsonMap payload = {
         'targetMacros': {
-          'targetCalories': targetCalories,
-          'targetProteinGrams': newProteinGrams,
-          'targetCarbsGrams': newCarbsGrams,
-          'targetFatGrams': newFatGrams,
-          'proteinPercent': proteinPct,
-          'carbsPercent': carbsPct,
-          'fatPercent': fatPct,
+          'targetCalories': cleanCal,
+          'targetProteinGrams': cleanP,
+          'targetCarbsGrams': cleanC,
+          'targetFatGrams': cleanF,
+          'proteinPercent': pPct,
+          'carbsPercent': cPct,
+          'fatPercent': fPct,
         },
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .set(payload, SetOptions(merge: true));
       return true;
     } catch (_) {
       return false;
     }
   }
 
+  // Giữ tương thích ngược nếu có nơi gọi hàm cũ
+  Future<bool> updateTargetMacros({
+    required int targetCalories,
+    required int proteinPct,
+    required int carbsPct,
+    required int fatPct,
+  }) async {
+    final pGrams = (targetCalories * (proteinPct / 100.0)) / 4.0;
+    final cGrams = (targetCalories * (carbsPct / 100.0)) / 4.0;
+    final fGrams = (targetCalories * (fatPct / 100.0)) / 9.0;
+
+    return saveMacroTargets(
+      targetCalories: targetCalories,
+      proteinGrams: pGrams,
+      carbsGrams: cGrams,
+      fatGrams: fGrams,
+    );
+  }
+
   Future<void> updateDisplayName(String newName) async {
     final clean = newName.trim();
     final user = _auth.currentUser;
     if (user == null || clean.isEmpty) return;
+
+    _displayName = clean;
+    notifyListeners();
 
     try {
       await user.updateDisplayName(clean);
